@@ -75,9 +75,68 @@ class PixelWind {
     X: 1,
     Y: 2,
     XY: 3,
-  }
-  flip(mat: Mat, mode = this.FILP.X) {
+  };
+  // 镜像翻转 x轴，y轴，对角线
+  flip(mat: Mat, mode = this.FILP.XY) {
+    const { size, data, rows, cols } = mat;
+    const { width, height } = size;
+    const nMat = new Mat(
+      new ImageData(new Uint8ClampedArray(rows * cols * 4), width, height)
+    );
 
+    const halfX =
+      rows % 2 === 0 ? Math.floor(rows / 2) : Math.floor(rows / 2) + 1;
+    const halfY =
+      cols % 2 === 0 ? Math.floor(cols / 2) : Math.floor(cols / 2) + 1;
+
+    switch (mode) {
+      case this.FILP.X:
+        mat.recycle(
+          (pixel, row, col) => {
+            const flipY = cols - col - 1;
+            const [R, G, B, A] = pixel;
+            const [RR, GG, BB, AA] = mat.at(row, flipY);
+            nMat.update(row, col, RR, GG, BB, AA);
+            nMat.update(row, flipY, R, G, B, A);
+          },
+          0,
+          rows,
+          0,
+          halfY
+        );
+        return nMat;
+      case this.FILP.Y:
+        mat.recycle(
+          (pixel, row, col) => {
+            const filpX = rows - row - 1;
+            const [R, G, B, A] = pixel;
+            const [RR, GG, BB, AA] = mat.at(filpX, col);
+            nMat.update(row, col, RR, GG, BB, AA);
+            nMat.update(filpX, col, R, G, B, A);
+          },
+          0,
+          halfX,
+          0,
+          cols
+        );
+        return nMat;
+      case this.FILP.XY:
+        mat.recycle(
+          (pixel, row, col) => {
+            const filpX = rows - row - 1;
+            const flipY = cols - col - 1;
+            const [R, G, B, A] = pixel;
+            const [RR, GG, BB, AA] = mat.at(filpX, flipY);
+            nMat.update(row, col, RR, GG, BB, AA);
+            nMat.update(filpX, flipY, R, G, B, A);
+          },
+          0,
+          rows,
+          0,
+          halfY
+        );
+        return nMat;
+    }
   }
   // 裁剪 注意边界处理
   clip(mat: Mat, x: number, y: number, width: number, height: number) {
@@ -100,7 +159,7 @@ class PixelWind {
     newMat.recycle((pixel, row, col) => {
       const [R, G, B, A] = mat.at(row, col);
       newMat.update(row, col, R, G, B, A);
-    })
+    });
     return newMat;
   }
 
@@ -945,11 +1004,14 @@ class Mat {
   }
 
   recycle(
-    callback: (pixel: Pixel, row: number, col: number) => void | "break"
+    callback: (pixel: Pixel, row: number, col: number) => void | "break",
+    startX = 0,
+    endX = this.rows,
+    startY = 0,
+    endY = this.cols
   ) {
-    const { rows, cols } = this;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
+    for (let row = startX; row < endX; row++) {
+      for (let col = startY; col < endY; col++) {
         callback(this.at(row, col) as Pixel, row, col);
       }
     }

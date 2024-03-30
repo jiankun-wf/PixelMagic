@@ -81,6 +81,9 @@
           <div class="cu-btn white bordered small" @click="handleToFleetingFilter()">流年滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToSunLightFilter()">阳光滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToClip()">裁剪测试</div>
+          <div class="cu-btn primary small" @click="handleToFlipX()">X轴镜像翻转</div>
+          <div class="cu-btn primary small" @click="handleToFlipY()">Y轴镜像翻转</div>
+          <div class="cu-btn primary small" @click="handleToFlipXY()">对角线反转</div>
         </div>
 
 
@@ -357,6 +360,36 @@
         const { size: { width, height } } = mat;
         const nMat =  pw.resize(mat, Math.round(scale * width), Math.round(scale * height), pw.RESIZE.INTER_NEAREST);        
         this.handleShowImg(nMat);
+      },
+      handleToFlipX(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        const nMat = pw.flip(mat, pw.FILP.X);
+        if (!arguments.length) {
+          this.saveMat = nMat.clone();
+          nMat.delete();
+          this.handleShowImg();
+        }
+      },
+      handleToFlipY(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        const nMat = pw.flip(mat, pw.FILP.Y);
+        if (!arguments.length) {
+          this.saveMat = nMat.clone();
+          nMat.delete();
+          this.handleShowImg();
+        }
+      },
+      handleToFlipXY(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        const nMat = pw.flip(mat, pw.FILP.XY);
+        if (!arguments.length) {
+          this.saveMat = nMat.clone();
+          nMat.delete();
+          this.handleShowImg();
+        }
       },
       handleDownload() {
         if (!this.saveMat) return;
