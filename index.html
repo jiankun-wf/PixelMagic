@@ -80,6 +80,7 @@
           <div class="cu-btn white bordered small" @click="handleToNostalgiaFilter()">复古滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToFleetingFilter()">流年滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToSunLightFilter()">阳光滤镜</div>
+          <div class="cu-btn white bordered small" @click="handleToClip()">裁剪测试</div>
         </div>
 
 
@@ -335,6 +336,17 @@
         if (!arguments.length) {
           this.saveMat = mat.clone();
           mat.delete();
+          this.handleShowImg();
+        }
+      },
+      handleToClip(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+
+        const nMat = pw.clip(mat, 0, 0, 500, 500);
+        if (!arguments.length) {
+          this.saveMat = nMat.clone();
+          nMat.delete();
           this.handleShowImg();
         }
       },

@@ -69,13 +69,48 @@ class PixelWind {
       u * v * point4
     );
   }
+
+  // 镜像反转
+  FILP = {
+    X = 1,
+    Y = 2,
+    XY = 3,
+  }
+  flip(mat: Mat, mode = this.FILP.X) {
+
+  }
+  // 裁剪 注意边界处理
+  clip(mat: Mat, x: number, y: number, width: number, height: number) {
+    const {
+      size: { width: mWidth, height: mHeight },
+    } = mat;
+
+    const endX = Math.min(x + width, mWidth);
+    const endY = Math.min(y + height, mHeight);
+    const startX = Math.max(x, 0);
+    const startY = Math.max(y, 0);
+
+    const dirx = endX - startX;
+    const diry = endY - startY;
+
+    const newMat = new Mat(
+      new ImageData(new Uint8ClampedArray(dirx * diry * 4), diry, dirx)
+    );
+
+    newMat.recycle((pixel, row, col) => {
+      const [R, G, B, A] = mat.at(row, col);
+      newMat.update(row, col, R, G, B, A);
+    })
+    return newMat;
+  }
+
   RESIZE = {
     // 最临近值算法 计算速度最快，质量差
-    INTER_NEAREST: 1,
+    INTER_NEAREST = 1,
     // 双线性插值  计算速度适中，质量一般（默认）
-    INTER_LINEAR: 2,
+    INTER_LINEAR = 2,
     // 三次样条插值  计算速度较慢，质量最好
-    INTER_CUBIC: 3,
+    INTER_CUBIC = 3,
     //
     // INTER_AREA: 4,
     //
@@ -198,10 +233,6 @@ class PixelWind {
           }
         });
         return execMat;
-      // case this.RESIZE.INTER_AREA:
-      //   return execMat;
-      // case this.RESIZE.INTER_LANCZOS4:
-      //   return execMat;
     }
   }
 

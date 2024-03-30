@@ -15,7 +15,7 @@ const configs = [
             path.resolve(__dirname, '..', 'lib/index.ts')
         ],
         write: true,
-        minify: true,
+        minify: false,
     },
     {
         format: 'cjs',

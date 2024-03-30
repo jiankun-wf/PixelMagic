@@ -1,3 +1,4 @@
+```
 # 图像处理库 pixelwind 之 github 分库
 
 示例页：https://jiankun-wf.github.io/pixelwind/
@@ -8,6 +9,7 @@
 
 |      方法名       |     说明     |                                      参数                                      | 返回类型 | 执行结果                                                                                                                                            |
 | :---------------: | :----------: | :----------------------------------------------------------------------------: | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+|       clip        |   剪裁   |                  `mat: Mat, x: number, y: number, width: number, height: number`                   |   Mat   | 返回新图像数据， 按开始坐标剪裁width与height宽度的区域。
 |       fade        |   线性擦退   |                  `mat: Mat, mode: FadeMode, percent: number`                   |   void   | 更改源图像数据， 按比例使得图像变白，可由 mode 控制从深色还是浅色开始擦退                                                                           |
 |      native       |  纯色化处理  |                          `mat: Mat, color: Hexcolor`                           |   void   | 更改源图像数据, 使得图像中的非白与非透明像素变为指定颜色 color 为 hex 格式                                                                          |
 |  nativeRollback   |   纯色反转   |                                   `mat: Mat`                                   |   void   | 更改源图像数据, 使得纯色化处理的图片非白变白，白变非白                                                                                              |
@@ -40,12 +42,15 @@
 
 ### 方法
 
-1. at(x, y)，获取第 x 行 y 列的像素
-2. recycle(callback) 循环像素并返回回调函数 callback(pixel：像素值，row: 当前行数，col：当前列数)
-3. getAddress(x, y)，用于获取像素在 data 中的地址，参数同 at
-4. imgshow(), 用于将 data 数据展示在画布上，参数：canvas 元素或者元素 Id、clip 是否缩放，clipWidth 缩放最大宽度，clipHeight 缩放最大高度
-5. toBlob()，将 data 数据转换为 Blob 对象。
-6. toDataURL()，将 data 数据转换为 DataURL。
+| 方法名  | 说明  | 参数  | 返回值  |
+| ------------ | ------------ | ------------ | ------------ |
+|  at  | 获取指定坐标的像素通道  |  x: number, y: number`  | `[R, G, B, A]  |
+| recycle  | 循环所有像素值，执行每个像素的回调函数  | `callback: (pixel: number, row: number, col: number) => void`  | void  |
+| getAddress | 获取指定坐标在图像数据的实际地址  |  `x: number, y: number`  |  `[indexR, indexG, indexB, indexA]`  |
+|  imgshow | 输出图像到画布  |  `canvas：id | HTMLCANVASELEMENT  mat: Mat, clip?: boolean, clipWidth?: number, clipHeight?: number`  |  Promise<void>  |
+| toBlob  |  输出blob格式的图像数据 | `type: image/png | image/jpeg | image/webp, quality?: number = 1`  | Blob  |
+| toDataURL | 输出base64格式的图片地址 | `type: image/png | image/jpeg | image/webp, quality?: number = 1` | Base64String |
+
 
 # 使用
 
@@ -58,26 +63,29 @@
 
 ## 打包应用
 
-### 先打个包，因为只有一个 ts，直接用 tsc 编译为 js
+### 采用[esbuild](https://esbuild.bootcss.com/ "esbuild")打包器进行打包，分别构建esm、commonjs、iife文件
 
 `npm run build`
 
 #### 编译文件在 modules 文件夹下
+1. index.mjs esm类型文件
+2. index.cjs commonjs文件，一般在node中使用
+3. index.js iife文件，一般以cdn引入，将pw 挂载到window
+4. index.d.ts 类型声明文件
 
-## 应用到你的项目中，需要加到导出或者 windows 全局变量中;
+## 应用到你的项目中;
 
-### node 环境中：
+### esm规范：
 
-`const pw = new PixelWind()`;<br>
-`export { pw }`;<br>
+`import { pw } from 'index.mjs'`
 
-#### 或
+#### commonjs规范：
 
-`exports.pw = pw`;
+`const { pw } = require('index.cjs')`;
 
 ### 浏览器：
 
-`window.pw = new ImageResolver()`
+`const pw = window.pw`
 
 ## 读取图像
 
@@ -92,8 +100,22 @@
 `pw.native(mat, '#000000')`<br>
 `pw.nativeRollback(mat)`<br>
 
+## 自定义操作图像
+
+`
+  mat.recycle((pixel, row, col) => {
+    const [R, G, B, A] = pixel;
+    // 计算像素
+
+    // 更新像素值
+    mat.update(row, col, NR?, NG?, NB?, NA?)
+  })
+`
+
 ## 展示或生成图像
 
 `mat.toBlob(imageType, quality) // 生成blob，会返回Promise` <br>
 `mat.toDataURL() //生成base64码`<br>
 `mat.imgshow(canvasId, clip = true, clipWidth = 700, clipHeight = 400) // 在 700 * 400 的画布上完全展示图像`<br>
+
+```

@@ -1,1 +1,775 @@
-const g=_=>{throw Error(_)};class y{readAsElement(t){const e=document.createElement("canvas");e.width=t.width,e.height=t.height;const n=e.getContext("2d");n.drawImage(t,0,0,e.width,e.height);const o=n.getImageData(0,0,e.width,e.height);return new T(o)}async readAsDataUrl(t){t||g("no url\uFF01");try{const e=await y.resolveWithUrl(t);return Promise.resolve(e)}catch(e){return Promise.reject(e)}}async readAsData(t){t.size||g("no content blob");const e=URL.createObjectURL(t);try{const n=await y.resolveWithUrl(e);return Promise.resolve(n)}catch(n){return Promise.reject(n)}}static calcResizeLinerFunc(t,e,n,o,r,s){return(1-r)*(1-s)*t+r*(1-s)*e+(1-r)*s*n+r*s*o}RESIZE={INTER_NEAREST:1,INTER_LINEAR:2,INTER_CUBIC:3};resize(t,e,n,o=this.RESIZE.INTER_LINEAR){const r=new ImageData(new Uint8ClampedArray(n*e*4),e,n),s=new T(r),{size:{width:a,height:c}}=t,h=a/e,d=c/n;switch(o){case this.RESIZE.INTER_NEAREST:return s.recycle((M,R,l)=>{const i=Math.round(R*h),u=Math.round(l*d),[f,b,m,A]=t.at(i,u);s.update(R,l,f,b,m,A)}),s;case this.RESIZE.INTER_LINEAR:return s.recycle((M,R,l)=>{const i=(R+.5)*h-.5,u=(l+.5)*d-.5,f=Math.floor(i),b=Math.floor(u),m=Math.ceil(i),A=Math.ceil(u),E=i-f,N=u-b,[w,G,p,B]=t.at(f,b),[x,I,L,S]=t.at(m,b),[C,O,D,U]=t.at(f,A),[v,H,F,Y]=t.at(m,A),k=y.calcResizeLinerFunc(w,x,C,v,E,N),Z=y.calcResizeLinerFunc(G,I,O,H,E,N),$=y.calcResizeLinerFunc(p,L,D,F,E,N),V=y.calcResizeLinerFunc(B,S,U,Y,E,N);s.update(R,l,k,Z,$,V)}),s;case this.RESIZE.INTER_CUBIC:return s.recycle((M,R,l)=>{const i=Math.floor(R*h),u=Math.floor(l*d),f=i-R,b=u-l;let m=0,A=0,E=0,N=0;for(let w=-1;w<3;w++)for(let G=-1;G<3;G++){let p=i+w,B=u+G;p=Math.max(p,0),p=Math.min(p,t.rows-1),B=Math.max(B,0),B=Math.min(B,t.cols-1)}}),s}}fade(t,e,n){const r=(e==="in"?1-n:n)*255,s=r,a=r,c=r;switch(e){case"in":t.recycle((h,d,M)=>{const[R,l,i]=h;R+l+i>s+a+c&&t.update(d,M,255,255,255)});break;case"out":t.recycle((h,d,M)=>{const[R,l,i]=h;R+l+i<s+a+c&&t.update(d,M,255,255,255)});break}}native(t,e="#000000"){const n=e.slice(1),[o,r,s]=[+`0x${n.slice(0,2)}`,+`0x${n.slice(2,4)}`,+`0x${n.slice(4,6)}`];t.recycle((a,c,h)=>{const[d,M,R]=a;(d!==255||M!==255||R!==255)&&t.update(c,h,o,r,s)})}nativeRollback(t){const e=[0,0,0,0];t.recycle(n=>{const[o,r,s]=n;if(o!==255||r!==255||s!==255)return e[0]=o,e[1]=r,e[2]=s,"break"}),t.recycle((n,o,r)=>{const[s,a,c]=n;s===e[0]&&a===e[1]&&c===e[2]?t.update(o,r,255,255,255):t.update(o,r,e[0],e[1],e[2])})}dropTransparent(t,e="#FFFFFFff"){const n=e.slice(1),[o,r,s,a]=[+`0x${n.slice(0,2)}`,+`0x${n.slice(2,4)}`,+`0x${n.slice(4,6)}`,n.length>=8?+`0x${n.slice(6,8)}`:255];t.recycle((c,h,d)=>{c[3]===0&&t.update(h,d,o,r,s,a)})}colorRollback(t){t.recycle((e,n,o)=>{const[r,s,a,c]=e;t.update(n,o,255-r,255-s,255-a,255-c)})}gray(t){t.recycle((e,n,o)=>{const[r,s,a]=e,c=Math.floor(y.rgbToGray(r,s,a));t.update(n,o,c,c,c)})}medianBlur(t,e){e%2!==1&&g("size\u9700\u4E3A\u5947\u6574\u6570\uFF01");const n=-Math.floor(e/2),o=Math.abs(n);t.recycle((r,s,a)=>{const c={R:[],G:[],B:[],A:[]};for(let i=n;i<=o;i++){let u=s+i;if(!(u<0||u>=t.rows))for(let f=n;f<=o;f++){let b=a+f;if(b<0||b>=t.cols)continue;const[m,A,E,N]=t.at(u,b);c.R.push(m),c.G.push(A),c.B.push(E),c.A.push(N)}}c.R.sort((i,u)=>i-u),c.G.sort((i,u)=>i-u),c.B.sort((i,u)=>i-u),c.A.sort((i,u)=>i-u);const h=c.R.length%2!==0;let d,M,R,l;if(h){const{R:i,G:u,B:f,A:b}=c,m=Math.floor(i.length/2);d=i[m],M=u[m],R=f[m],l=b[m]}else{const{R:i,G:u,B:f,A:b}=c,m=i.length/2,A=m-1;d=Math.round((i[m]+i[A])/2),M=Math.round((u[m]+u[A])/2),R=Math.round((f[m]+f[A])/2),l=Math.round((b[m]+b[A])/2)}t.update(s,a,d,M,R)})}gaussianBlur(t,e,n=0,o=n){e%2===0&&g("size\u9700\u4E3A\u5947\u6574\u6570\uFF01"),(!n||n===0)&&(n=.3*((e-1)/2-1)+.8),(!o||o===0)&&(o=n);const r=y.calcGaussianKernel(e,n,o);if(!r.length)return;const s=Math.floor(e/2);t.recycle((a,c,h)=>{let d=0,M=0,R=0,l=0;for(let i=0;i<e;i++)for(let u=0;u<e;u++){let f=c+i-s,b=h+u-s;f=Math.max(f,0),f=Math.min(f,t.rows-1),b=Math.max(b,0),b=Math.min(b,t.cols-1);const m=r[i][u],[A,E,N,w]=t.at(f,b);d+=A*m,M+=E*m,R+=N*m,l+=w*m}t.update(c,h,Math.round(d),Math.round(M),Math.round(R),Math.round(l))})}meanBlur(t,e){e%2===0&&g("size\u9700\u4E3A\u5947\u6574\u6570\uFF01");const n=Math.floor(e/2),o=Math.pow(e,2);t.recycle((r,s,a)=>{let c=0,h=0,d=0,M=0;for(let R=0;R<e;R++)for(let l=0;l<e;l++){let i=s+R-n,u=a+l-n;i=Math.max(i,0),i=Math.min(i,t.rows-1),u=Math.max(u,0),u=Math.min(u,t.cols-1);const[f,b,m,A]=t.at(i,u);c+=f,h+=b,d+=m,M+=A}t.update(s,a,Math.round(c/o),Math.round(h/o),Math.round(d/o),Math.round(M/o))})}static LINER_CONTRAST=1.5;static BRIGHTNESS_CONTRAST=50;static SATURATION_CONTRAST=1.5;LUT(t,e){if(arguments.length===1||!e?.length){e=new Uint8ClampedArray(256);for(let n=0;n<256;n++)e[n]=Math.min(255,Math.floor(n*y.SATURATION_CONTRAST))}t.recycle((n,o,r)=>{const[s,a,c]=n;t.update(o,r,e[s],e[a],e[c])})}THRESHOLD_TYPE={BINARY:1,BINARY_INV:2,TRUNC:3,TOZERO:4,TOZERO_INV:5};THRESHOLD_MODE={THRESHOLD:1,OTSU:2,MANUAL:3};threshold(t,e,n,o=this.THRESHOLD_TYPE.BINARY,r=this.THRESHOLD_MODE.THRESHOLD){t.recycle((s,a,c)=>{const[h,d,M]=t.at(a,c),R=y.rgbToGray(h,d,M);let l;switch(r){case this.THRESHOLD_MODE.THRESHOLD:l=y.calcThresholdValue(R,e,n,o);break;case this.THRESHOLD_MODE.OTSU:l=y.calcThresholdValue(R,y.calcOtsuThreshold(t),n,o);break;case this.THRESHOLD_MODE.MANUAL:l=y.calcThresholdValue(R,e,n,o);break}t.update(a,c,l,l,l)})}dropWhite(t){t.recycle((e,n,o)=>{const[r,s,a,c]=e;r===255&&s===255&&a===255&&c!==0&&t.update(n,o,void 0,void 0,void 0,0)})}groundGlassFilter(t,e=5,n=!0){(!e||e<=0)&&g("offset \u9700\u4E3A\u6B63\u6574\u6570\uFF01");const{rows:o,cols:r}=t,s=o-e,a=r-e;for(let c=0;c<s;c++)for(let h=0;h<a;h++){const d=Math.floor(Math.random()*e),M=c+d,R=h+(n?d:Math.floor(Math.random()*e)),[l,i,u,f]=t.at(M,R);t.update(c,h,l,i,u,f)}}nostalgiaFilter(t){t.recycle((e,n,o)=>{const[r,s,a]=e,c=Math.min(.393*r+.769*s+.189*a,255),h=Math.min(.349*r+.686*s+.168*a,255),d=Math.min(.272*r+.534*s+.131*a,255);t.update(n,o,c,h,d)})}fleetingFilter(t,e=12){e=Math.round(e),e<=0&&g("\u56E0\u5B50\u5FC5\u987B\u5927\u4E8E0"),t.recycle((n,o,r)=>{const s=n[2],a=Math.sqrt(s)*e;t.update(o,r,void 0,void 0,a)})}sunLightFilter(t,e,n,o,r=150){const{rows:s,cols:a}=t;e=e||Math.floor(s/2),n=n||Math.floor(a/2),o=o||Math.min(s,a),t.recycle((c,h,d)=>{const M=Math.pow(e-h,2)+Math.pow(n-d,2);if(M<Math.pow(o,2)){const[R,l,i]=c,u=Math.round(r*(1-Math.sqrt(M)/o));t.update(h,d,Math.min(255,Math.max(0,R+u)),Math.min(255,Math.max(0,l+u)),Math.min(255,Math.max(0,i+u)))}})}static GRAY_SCALE_RED=.2989;static GRAY_SCALE_GREEN=.587;static GRAY_SCALE_BLUE=.114;static rgbToGray(t,e,n){return t*y.GRAY_SCALE_RED+e*y.GRAY_SCALE_GREEN+n*y.GRAY_SCALE_BLUE}static resolveWithUrl(t){return new Promise((e,n)=>{const o=new Image;o.addEventListener("load",()=>{const r=document.createElement("canvas");r.width=o.width,r.height=o.height;const s=r.getContext("2d");s.drawImage(o,0,0,r.width,r.height);const a=s.getImageData(0,0,r.width,r.height);e(new T(a)),o.remove(),r.remove()}),o.addEventListener("error",(...r)=>{n(r[1])}),o.setAttribute("src",t)})}static gaussianFunction(t,e,n,o){const r=-(t*t/(2*n*n)),s=-(e*e/(2*o*o));return 1/(2*Math.PI*n*o)*Math.exp(r+s)}static calcGaussianKernel(t,e,n){const o=[],r=Math.floor(t/2);let s=0;for(let a=-r;a<=r;a++){const c=r+a;o[c]=[];for(let h=-r;h<=r;h++){const d=r+h,M=y.gaussianFunction(a,h,e,n);o[c][d]=M,s+=M}}for(let a=0;a<t;a++)for(let c=0;c<t;c++)o[a][c]/=s;return o}static calcThresholdValue(t,e,n,o){let r;switch(o){case 1:r=t<e?0:n;break;case 2:r=t<e?n:0;break;case 3:r=t<e?t:e;break;case 4:r=t<e?0:t;break;case 5:r=t<e?t:0;break}return r}static calcOtsuThreshold(t){const e=new Array(256).fill(0);let n=0;t.recycle((a,c,h)=>{const[d,M,R]=a,l=y.rgbToGray(d,M,R);e[Math.floor(l)]++,n++});let o=e.map(a=>a/n),r=0,s=0;for(let a=0;a<256;a++){let c=o.slice(0,a+1).reduce((l,i)=>l+i,0),h=1-c,d=o.slice(0,a+1).map((l,i)=>i*l).reduce((l,i)=>l+i,0),M=o.slice(a+1).map((l,i)=>i*l).reduce((l,i)=>l+i,0),R=c*h*Math.pow(d/c-M/h,2);R>s&&(s=R,r=a)}return r}}class T{rows;cols;channels;size;data;constructor(t){this.rows=t.height,this.cols=t.width,this.size={width:t.width,height:t.height},this.channels=4,this.data=t.data}clone(){const{data:t,size:{width:e,height:n}}=this,o=new Uint8ClampedArray(t),r=new ImageData(o,e,n);return new T(r)}delete(){this.data=new Uint8ClampedArray(0)}update(t,e,...n){const{data:o}=this,r=this.getAddress(t,e);for(let s=0;s<4;s++)n[s]!==void 0&&(o[r[s]]=n[s])}getAddress(t,e){const{channels:n,cols:o}=this,r=o*t*n+e*n;return[r,r+1,r+2,r+3]}recycle(t){const{rows:e,cols:n}=this;for(let o=0;o<e;o++)for(let r=0;r<n;r++)t(this.at(o,r),o,r)}at(t,e){const{data:n}=this,[o,r,s,a]=this.getAddress(t,e);return[n[o],n[r],n[s],n[a]]}imgshow(t,e=!1,n=0,o=0){const r=t instanceof HTMLCanvasElement?t:document.querySelector(t);r||g("\u65E0\u6CD5\u627E\u5230canvas\u5F53\u524D\u5143\u7D20\uFF01");const{data:s,size:a}=this,{width:c,height:h}=a,d=new ImageData(s,c,h),M=r.getContext("2d");e?(r.width=n,r.height=o,window.createImageBitmap(d,{resizeHeight:o,resizeWidth:n}).then(R=>{M.drawImage(R,0,0)})):(r.width=c,r.height=h,M.putImageData(d,0,0,0,0,r.width,r.height))}toDataUrl(t,e=1){const n=document.createElement("canvas");return this.imgshow(n),n.toDataURL(t??"image/png",e)}toBlob(t,e=1){return new Promise((n,o)=>{const r=document.createElement("canvas");this.imgshow(r),r.toBlob(s=>{if(!s||!s.size)return o(new Error("\u8F6C\u6362\u5931\u8D25\uFF1A\u4E0D\u5B58\u5728\u7684blob\u6216blob\u5927\u5C0F\u4E3A\u7A7A"));n(s)},t??"image/png",e)})}}const j=new y;export{j as pw};
+const errorlog = (text) => {
+    throw Error(text);
+};
+class PixelWind {
+    // client-only
+    readAsElement(img) {
+        const cavans = document.createElement("canvas");
+        cavans.width = img.width;
+        cavans.height = img.height;
+        const ctx = cavans.getContext("2d");
+        ctx.drawImage(img, 0, 0, cavans.width, cavans.height);
+        const imageData = ctx.getImageData(0, 0, cavans.width, cavans.height);
+        return new Mat(imageData);
+    }
+    // base64 或者非跨域url
+    async readAsDataUrl(url) {
+        if (!url) {
+            errorlog("no url\uFF01");
+        }
+        try {
+            const mat = await PixelWind.resolveWithUrl(url);
+            return Promise.resolve(mat);
+        } catch (e) {
+            return Promise.reject(e);
+        }
+    }
+    // 读取blob 或 file对象
+    async readAsData(blob) {
+        if (!blob.size) {
+            errorlog("no content blob");
+        }
+        const url = URL.createObjectURL(blob);
+        try {
+            const mat = await PixelWind.resolveWithUrl(url);
+            return Promise.resolve(mat);
+        } catch (e) {
+            return Promise.reject(e);
+        }
+    }
+    static calcResizeLinerFunc(point1, point2, point3, point4, u, v) {
+        return (1 - u) * (1 - v) * point1 + u * (1 - v) * point2 + (1 - u) * v * point3 + u * v * point4;
+    }
+    clip(mat, x, y, width, height) {
+        const {
+            size: { width: mWidth, height: mHeight }
+        } = mat;
+        const endX = Math.min(x + width, mWidth);
+        const endY = Math.min(y + height, mHeight);
+        const startX = Math.max(x, 0);
+        const startY = Math.max(y, 0);
+        const dirx = endX - startX;
+        const diry = endY - startY;
+        const newMat = new Mat(
+            new ImageData(new Uint8ClampedArray(dirx * diry * 4), diry, dirx)
+        );
+        newMat.recycle((pixel, row, col) => {
+            const [R, G, B, A] = mat.at(row, col);
+            newMat.update(row, col, R, G, B, A);
+
+        })
+        return newMat;
+    }
+    RESIZE = {
+        // 最临近值算法 计算速度最快，质量差
+        INTER_NEAREST: 1,
+        // 双线性插值  计算速度适中，质量一般（默认）
+        INTER_LINEAR: 2,
+        // 三次样条插值  计算速度较慢，质量最好
+        INTER_CUBIC: 3
+        //
+        // INTER_AREA: 4,
+        //
+        // INTER_LANCZOS4: 5,
+    };
+    // 图片缩放
+    resize(mat, scaleWidth, scaleHeight, mode = this.RESIZE.INTER_LINEAR) {
+        const imageData = new ImageData(
+            new Uint8ClampedArray(scaleHeight * scaleWidth * 4),
+            scaleWidth,
+            scaleHeight
+        );
+        const execMat = new Mat(imageData);
+        const {
+            size: { width, height }
+        } = mat;
+        const xRatio = width / scaleWidth;
+        const yRatio = height / scaleHeight;
+        switch (mode) {
+            case this.RESIZE.INTER_NEAREST:
+                execMat.recycle((_pixel, row, col) => {
+                    const scaleX = Math.round(row * xRatio);
+                    const scaleY = Math.round(col * yRatio);
+                    const [R, G, B, A] = mat.at(scaleX, scaleY);
+                    execMat.update(row, col, R, G, B, A);
+                });
+                return execMat;
+            case this.RESIZE.INTER_LINEAR:
+                execMat.recycle((_pixel, row, col) => {
+                    const srcX = (row + 0.5) * xRatio - 0.5;
+                    const srcY = (col + 0.5) * yRatio - 0.5;
+                    const x1 = Math.floor(srcX), y1 = Math.floor(srcY), x2 = Math.ceil(srcX), y2 = Math.ceil(srcY);
+                    const u = srcX - x1, v = srcY - y1;
+                    const [R_x1_y1, G_x1_y1, B_x1_y1, A_x1_y1] = mat.at(x1, y1);
+                    const [R_x2_y1, G_x2_y1, B_x2_y1, A_x2_y1] = mat.at(x2, y1);
+                    const [R_x1_y2, G_x1_y2, B_x1_y2, A_x1_y2] = mat.at(x1, y2);
+                    const [R_x2_y2, G_x2_y2, B_x2_y2, A_x2_y2] = mat.at(x2, y2);
+                    const NR = PixelWind.calcResizeLinerFunc(
+                        R_x1_y1,
+                        R_x2_y1,
+                        R_x1_y2,
+                        R_x2_y2,
+                        u,
+                        v
+                    );
+                    const NG = PixelWind.calcResizeLinerFunc(
+                        G_x1_y1,
+                        G_x2_y1,
+                        G_x1_y2,
+                        G_x2_y2,
+                        u,
+                        v
+                    );
+                    const NB = PixelWind.calcResizeLinerFunc(
+                        B_x1_y1,
+                        B_x2_y1,
+                        B_x1_y2,
+                        B_x2_y2,
+                        u,
+                        v
+                    );
+                    const NA = PixelWind.calcResizeLinerFunc(
+                        A_x1_y1,
+                        A_x2_y1,
+                        A_x1_y2,
+                        A_x2_y2,
+                        u,
+                        v
+                    );
+                    execMat.update(row, col, NR, NG, NB, NA);
+                });
+                return execMat;
+            case this.RESIZE.INTER_CUBIC:
+                execMat.recycle((pixel, row, col) => {
+                    const srcX = Math.floor(row * xRatio);
+                    const srcY = Math.floor(col * yRatio);
+                    const u = srcX - row, v = srcY - col;
+                    let NR = 0, NG = 0, NB = 0, NA = 0;
+                    for (let x = -1; x < 3; x++) {
+                        for (let y = -1; y < 3; y++) {
+                            let offsetX = srcX + x;
+                            let offsetY = srcY + y;
+                            offsetX = Math.max(offsetX, 0);
+                            offsetX = Math.min(offsetX, mat.rows - 1);
+                            offsetY = Math.max(offsetY, 0);
+                            offsetY = Math.min(offsetY, mat.cols - 1);
+                        }
+                    }
+                });
+                return execMat;
+        }
+    }
+    // 图像的 浅色擦除/深色擦除      渐隐比例：0.50
+    fade(mat, mode, percent) {
+        const per = mode === "in" ? 1 - percent : percent;
+        const C = per * 255;
+        const CR = C, CG = C, CB = C;
+        switch (mode) {
+            case "in":
+                mat.recycle((pixel, row, col) => {
+                    const [R, G, B] = pixel;
+                    if (R + G + B > CR + CG + CB) {
+                        mat.update(row, col, 255, 255, 255);
+                    }
+                });
+                break;
+            case "out":
+                mat.recycle((pixel, row, col) => {
+                    const [R, G, B] = pixel;
+                    if (R + G + B < CR + CG + CB) {
+                        mat.update(row, col, 255, 255, 255);
+                    }
+                });
+                break;
+        }
+    }
+    // 图像的纯色化处理 （非白非透明转为指定颜色）
+    native(mat, color = "#000000") {
+        const c = color.slice(1);
+        const [NR, NG, NB] = [
+            Number(`0x${c.slice(0, 2)}`),
+            Number(`0x${c.slice(2, 4)}`),
+            Number(`0x${c.slice(4, 6)}`)
+        ];
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            if (R !== 255 || G !== 255 || B !== 255) {
+                mat.update(row, col, NR, NG, NB);
+            }
+        });
+    }
+    // 纯色化反转
+    nativeRollback(mat) {
+        const currentColor = [0, 0, 0, 0];
+        mat.recycle((pixel) => {
+            const [R, G, B] = pixel;
+            if (R !== 255 || G !== 255 || B !== 255) {
+                currentColor[0] = R;
+                currentColor[1] = G;
+                currentColor[2] = B;
+                return "break";
+            }
+        });
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            if (R === currentColor[0] && G === currentColor[1] && B === currentColor[2]) {
+                mat.update(row, col, 255, 255, 255);
+            } else {
+                mat.update(row, col, currentColor[0], currentColor[1], currentColor[2]);
+            }
+        });
+    }
+    // 图像的透明像素转换为指定颜色（默认白）
+    dropTransparent(mat, color = "#FFFFFFff") {
+        const c = color.slice(1);
+        const [NR, NG, NB, NA] = [
+            Number(`0x${c.slice(0, 2)}`),
+            Number(`0x${c.slice(2, 4)}`),
+            Number(`0x${c.slice(4, 6)}`),
+            c.length >= 8 ? Number(`0x${c.slice(6, 8)}`) : 255
+        ];
+        mat.recycle((pixel, row, col) => {
+            const A = pixel[3];
+            if (A === 0) {
+                mat.update(row, col, NR, NG, NB, NA);
+            }
+        });
+    }
+    // 颜色逆转 本质为255 - 当前色值（透明度相同）
+    colorRollback(mat) {
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B, A] = pixel;
+            mat.update(row, col, 255 - R, 255 - G, 255 - B, 255 - A);
+        });
+    }
+    // 图像灰度化处理（加权平均法）
+    gray(mat) {
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            const Gray = Math.floor(PixelWind.rgbToGray(R, G, B));
+            mat.update(row, col, Gray, Gray, Gray);
+        });
+    }
+    // 中值滤波（中值滤波），用于去除 椒盐噪点与胡椒噪点
+    // TODO 中位数计算 不要用Gray值，要RGB全计算。
+    medianBlur(mat, size) {
+        if (size % 2 !== 1) {
+            errorlog("size\u9700\u4E3A\u5947\u6574\u6570\uFF01");
+        }
+        const half = -Math.floor(size / 2);
+        const absHalf = Math.abs(half);
+        mat.recycle((_pixel, row, col) => {
+            const gsv = {
+                R: [],
+                G: [],
+                B: [],
+                A: []
+            };
+            for (let i = half; i <= absHalf; i++) {
+                let offsetX = row + i;
+                if (offsetX < 0 || offsetX >= mat.rows)
+                    continue;
+                for (let j = half; j <= absHalf; j++) {
+                    let offsetY = col + j;
+                    if (offsetY < 0 || offsetY >= mat.cols)
+                        continue;
+                    const [R, G, B, A] = mat.at(offsetX, offsetY);
+                    gsv.R.push(R);
+                    gsv.G.push(G);
+                    gsv.B.push(B);
+                    gsv.A.push(A);
+                }
+            }
+            gsv.R.sort((a, b) => a - b);
+            gsv.G.sort((a, b) => a - b);
+            gsv.B.sort((a, b) => a - b);
+            gsv.A.sort((a, b) => a - b);
+            const isOdd = gsv.R.length % 2 !== 0;
+            let NR, NG, NB, NA;
+            if (isOdd) {
+                const { R, G, B, A } = gsv;
+                const index = Math.floor(R.length / 2);
+                NR = R[index];
+                NG = G[index];
+                NB = B[index];
+                NA = A[index];
+            } else {
+                const { R, G, B, A } = gsv;
+                const index = R.length / 2;
+                const indexPre = index - 1;
+                NR = Math.round((R[index] + R[indexPre]) / 2);
+                NG = Math.round((G[index] + G[indexPre]) / 2);
+                NB = Math.round((B[index] + B[indexPre]) / 2);
+                NA = Math.round((A[index] + A[indexPre]) / 2);
+            }
+            mat.update(row, col, NR, NG, NB);
+        });
+    }
+    // 高斯滤波
+    gaussianBlur(mat, ksize, sigmaX = 0, sigmaY = sigmaX) {
+        if (ksize % 2 === 0) {
+            errorlog("size\u9700\u4E3A\u5947\u6574\u6570\uFF01");
+        }
+        if (!sigmaX || sigmaX === 0) {
+            sigmaX = 0.3 * ((ksize - 1) / 2 - 1) + 0.8;
+        }
+        if (!sigmaY || sigmaY === 0) {
+            sigmaY = sigmaX;
+        }
+        const gaussianKernel = PixelWind.calcGaussianKernel(ksize, sigmaX, sigmaY);
+        if (!gaussianKernel.length)
+            return;
+        const half = Math.floor(ksize / 2);
+        mat.recycle((_pixel, row, col) => {
+            let NR = 0, NG = 0, NB = 0, NA = 0;
+            for (let kx = 0; kx < ksize; kx++) {
+                for (let ky = 0; ky < ksize; ky++) {
+                    let offsetX = row + kx - half;
+                    let offsetY = col + ky - half;
+                    offsetX = Math.max(offsetX, 0);
+                    offsetX = Math.min(offsetX, mat.rows - 1);
+                    offsetY = Math.max(offsetY, 0);
+                    offsetY = Math.min(offsetY, mat.cols - 1);
+                    const rate = gaussianKernel[kx][ky];
+                    const [R, G, B, A] = mat.at(offsetX, offsetY);
+                    NR += R * rate;
+                    NG += G * rate;
+                    NB += B * rate;
+                    NA += A * rate;
+                }
+            }
+            mat.update(
+                row,
+                col,
+                Math.round(NR),
+                Math.round(NG),
+                Math.round(NB),
+                Math.round(NA)
+            );
+        });
+    }
+    // 均值滤波
+    // ksize * ksize 矩阵取平均值
+    meanBlur(mat, ksize) {
+        if (ksize % 2 === 0) {
+            errorlog("size\u9700\u4E3A\u5947\u6574\u6570\uFF01");
+        }
+        const half = Math.floor(ksize / 2);
+        const kernelSize = Math.pow(ksize, 2);
+        mat.recycle((_pixel, row, col) => {
+            let NR = 0, NG = 0, NB = 0, NA = 0;
+            for (let kx = 0; kx < ksize; kx++) {
+                for (let ky = 0; ky < ksize; ky++) {
+                    let offsetX = row + kx - half;
+                    let offsetY = col + ky - half;
+                    offsetX = Math.max(offsetX, 0);
+                    offsetX = Math.min(offsetX, mat.rows - 1);
+                    offsetY = Math.max(offsetY, 0);
+                    offsetY = Math.min(offsetY, mat.cols - 1);
+                    const [R, G, B, A] = mat.at(offsetX, offsetY);
+                    NR += R;
+                    NG += G;
+                    NB += B;
+                    NA += A;
+                }
+            }
+            mat.update(
+                row,
+                col,
+                Math.round(NR / kernelSize),
+                Math.round(NG / kernelSize),
+                Math.round(NB / kernelSize),
+                Math.round(NA / kernelSize)
+            );
+        });
+    }
+    // 线性对比度增强参数
+    static LINER_CONTRAST = 1.5;
+    // 亮度固定增强参数
+    static BRIGHTNESS_CONTRAST = 50;
+    // 饱和度增强参数
+    static SATURATION_CONTRAST = 1.5;
+    // LUT算法（色彩增强）
+    LUT(mat, lutTable) {
+        if (arguments.length === 1 || !lutTable?.length) {
+            lutTable = new Uint8ClampedArray(256);
+            for (let i = 0; i < 256; i++) {
+                lutTable[i] = Math.min(
+                    255,
+                    Math.floor(i * PixelWind.SATURATION_CONTRAST)
+                );
+            }
+        }
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            mat.update(row, col, lutTable[R], lutTable[G], lutTable[B]);
+        });
+    }
+    // 二值化类型
+    THRESHOLD_TYPE = {
+        BINARY: 1,
+        // 只有大于阈值的像素灰度值值为最大值，其他像素灰度值值为最小值。
+        BINARY_INV: 2,
+        // 与 1相反
+        TRUNC: 3,
+        // 截断阈值处理，大于阈值的像素灰度值被赋值为阈值，小于阈值的像素灰度值保持原值不变。
+        TOZERO: 4,
+        // 置零阈值处理，只有大于阈值的像素灰度值被置为0，其他像素灰度值保持原值不变。
+        TOZERO_INV: 5
+        // 反置零阈值处理，只有小于阈值的像素灰度值被置为0，其他像素灰度值保持原值不变。
+    };
+    // 二值化模式  表示阈值处理后，如何处理大于阈值的像素值。
+    THRESHOLD_MODE = {
+        THRESHOLD: 1,
+        // 表示直接使用阈值处理。
+        OTSU: 2,
+        // 表示使用Otsu's二值化方法进行阈值处理。
+        MANUAL: 3
+        // 表示使用手动指定的阈值进行阈值处理
+    };
+    /*
+     * 二值化处理
+     * @param mat 待处理图像
+     * @param threshold 阈值
+     * @param maxValue 最大值
+     * @param type 阈值处理类型
+     * @param mode 阈值处理模式
+     */
+    threshold(mat, threshold, maxValue, type = this.THRESHOLD_TYPE.BINARY, mode = this.THRESHOLD_MODE.THRESHOLD) {
+        mat.recycle((_pixel, row, col) => {
+            const [R, G, B] = mat.at(row, col);
+            const gray = PixelWind.rgbToGray(R, G, B);
+            let newValue;
+            switch (mode) {
+                case this.THRESHOLD_MODE.THRESHOLD:
+                    newValue = PixelWind.calcThresholdValue(
+                        gray,
+                        threshold,
+                        maxValue,
+                        type
+                    );
+                    break;
+                case this.THRESHOLD_MODE.OTSU:
+                    newValue = PixelWind.calcThresholdValue(
+                        gray,
+                        PixelWind.calcOtsuThreshold(mat),
+                        maxValue,
+                        type
+                    );
+                    break;
+                case this.THRESHOLD_MODE.MANUAL:
+                    newValue = PixelWind.calcThresholdValue(
+                        gray,
+                        threshold,
+                        maxValue,
+                        type
+                    );
+                    break;
+            }
+            mat.update(row, col, newValue, newValue, newValue);
+        });
+    }
+    // 去白
+    dropWhite(mat) {
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B, A] = pixel;
+            if (R === 255 && G === 255 && B === 255 && A !== 0) {
+                mat.update(row, col, void 0, void 0, void 0, 0);
+            }
+        });
+    }
+    // 毛玻璃滤镜
+    // 原理，在 0到offset中随机取一个整数，将当前像素点坐标x，y分别加这个整数，得到新的像素点
+    // 将新的像素点的RGBA通道赋值给当前像素点
+    // bothFamily：像素点x，y是否分别随机，对于一些色彩纹理较多的图像，建议关闭
+    groundGlassFilter(mat, offset = 5, bothFamily = true) {
+        if (!offset || offset <= 0) {
+            errorlog("offset \u9700\u4E3A\u6B63\u6574\u6570\uFF01");
+        }
+        const { rows, cols } = mat;
+        const offsetRows = rows - offset;
+        const offsetCols = cols - offset;
+        for (let row = 0; row < offsetRows; row++) {
+            for (let col = 0; col < offsetCols; col++) {
+                const index = Math.floor(Math.random() * offset);
+                const offsetX = row + index;
+                const offsetY = col + (bothFamily ? index : Math.floor(Math.random() * offset));
+                const [R, G, B, A] = mat.at(offsetX, offsetY);
+                mat.update(row, col, R, G, B, A);
+            }
+        }
+    }
+    // 怀旧滤镜
+    // 公式化计算RGB
+    nostalgiaFilter(mat) {
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            const NR = Math.min(0.393 * R + 0.769 * G + 0.189 * B, 255);
+            const NG = Math.min(0.349 * R + 0.686 * G + 0.168 * B, 255);
+            const NB = Math.min(0.272 * R + 0.534 * G + 0.131 * B, 255);
+            mat.update(row, col, NR, NG, NB);
+        });
+    }
+    // 流年滤镜 B通道取平方根 然后乘以因子
+    fleetingFilter(mat, size = 12) {
+        size = Math.round(size);
+        if (size <= 0) {
+            errorlog("\u56E0\u5B50\u5FC5\u987B\u5927\u4E8E0");
+        }
+        mat.recycle((pixel, row, col) => {
+            const B = pixel[2];
+            const NB = Math.sqrt(B) * size;
+            mat.update(row, col, void 0, void 0, NB);
+        });
+    }
+    // 光照滤镜
+    // centerX, centerY 中心点
+    // radius 光照圆半径
+    // strength 光照强度
+    sunLightFilter(mat, centerX, centerY, radius, strength = 150) {
+        const { rows, cols } = mat;
+        centerX = centerX || Math.floor(rows / 2);
+        centerY = centerY || Math.floor(cols / 2);
+        radius = radius || Math.min(rows, cols);
+        mat.recycle((pixel, row, col) => {
+            const distance = Math.pow(centerX - row, 2) + Math.pow(centerY - col, 2);
+            if (distance < Math.pow(radius, 2)) {
+                const [R, G, B] = pixel;
+                const suffix = Math.round(
+                    strength * (1 - Math.sqrt(distance) / radius)
+                );
+                mat.update(
+                    row,
+                    col,
+                    Math.min(255, Math.max(0, R + suffix)),
+                    Math.min(255, Math.max(0, G + suffix)),
+                    Math.min(255, Math.max(0, B + suffix))
+                );
+            }
+        });
+    }
+    // 加权平均法 红色通道（R）因子
+    static GRAY_SCALE_RED = 0.2989;
+    // 加权平均法 绿色通道（G）因子
+    static GRAY_SCALE_GREEN = 0.587;
+    // 加权平均法 蓝色通道（B）因子
+    static GRAY_SCALE_BLUE = 0.114;
+    // 加权平均法，计算结果
+    // 遵循国际公式：Y = 0.299 R + 0.587 G + 0.114 B
+    static rgbToGray(R, G, B) {
+        return R * PixelWind.GRAY_SCALE_RED + G * PixelWind.GRAY_SCALE_GREEN + B * PixelWind.GRAY_SCALE_BLUE;
+    }
+    // 用于解析url图片
+    static resolveWithUrl(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.addEventListener("load", () => {
+                const cavans = document.createElement("canvas");
+                cavans.width = img.width;
+                cavans.height = img.height;
+                const ctx = cavans.getContext("2d");
+                ctx.drawImage(img, 0, 0, cavans.width, cavans.height);
+                const imageData = ctx.getImageData(
+                    0,
+                    0,
+                    cavans.width,
+                    cavans.height
+                );
+                resolve(new Mat(imageData));
+                img.remove();
+                cavans.remove();
+            });
+            img.addEventListener("error", (...args) => {
+                reject(args[1]);
+            });
+            img.setAttribute("src", url);
+        });
+    }
+    // 高斯函数代入
+    static gaussianFunction(x, y, sigmaX, sigmaY) {
+        const exponentX = -(x * x / (2 * sigmaX * sigmaX));
+        const exponentY = -(y * y / (2 * sigmaY * sigmaY));
+        const coefficient = 1 / (2 * Math.PI * sigmaX * sigmaY);
+        const value = coefficient * Math.exp(exponentX + exponentY);
+        return value;
+    }
+    // 获取高斯矩阵
+    static calcGaussianKernel(ksize, sigmaX, sigmaY) {
+        const kernel = [];
+        const half = Math.floor(ksize / 2);
+        let sum = 0;
+        for (let x = -half; x <= half; x++) {
+            const row = half + x;
+            kernel[row] = [];
+            for (let y = -half; y <= half; y++) {
+                const col = half + y;
+                const gaussianFunctionRes = PixelWind.gaussianFunction(
+                    x,
+                    y,
+                    sigmaX,
+                    sigmaY
+                );
+                kernel[row][col] = gaussianFunctionRes;
+                sum += gaussianFunctionRes;
+            }
+        }
+        for (let i = 0; i < ksize; i++) {
+            for (let j = 0; j < ksize; j++) {
+                kernel[i][j] /= sum;
+            }
+        }
+        return kernel;
+    }
+    //根据二值化类型，计算阈值
+    // 参数 1. 灰度值 2. 阈值 3. 最大值 4. 二值化类型
+    static calcThresholdValue(value, threshold, maxValue, type) {
+        let newValue;
+        switch (type) {
+            case 1:
+                newValue = value < threshold ? 0 : maxValue;
+                break;
+            case 2:
+                newValue = value < threshold ? maxValue : 0;
+                break;
+            case 3:
+                newValue = value < threshold ? value : threshold;
+                break;
+            case 4:
+                newValue = value < threshold ? 0 : value;
+                break;
+            case 5:
+                newValue = value < threshold ? value : 0;
+                break;
+        }
+        return newValue;
+    }
+    // 计算 Otsu应用值
+    static calcOtsuThreshold(mat) {
+        const histogram = new Array(256).fill(0);
+        let totalPixels = 0;
+        mat.recycle((pixel, row, col) => {
+            const [R, G, B] = pixel;
+            const gray = PixelWind.rgbToGray(R, G, B);
+            histogram[Math.floor(gray)]++;
+            totalPixels++;
+        });
+        let normalizedHistogram = histogram.map((count) => count / totalPixels);
+        let bestThreshold = 0;
+        let maxVariance = 0;
+        for (let threshold = 0; threshold < 256; threshold++) {
+            let w0 = normalizedHistogram.slice(0, threshold + 1).reduce((a, b) => a + b, 0);
+            let w1 = 1 - w0;
+            let u0 = normalizedHistogram.slice(0, threshold + 1).map((p, i) => i * p).reduce((a, b) => a + b, 0);
+            let u1 = normalizedHistogram.slice(threshold + 1).map((p, i) => i * p).reduce((a, b) => a + b, 0);
+            let variance = w0 * w1 * Math.pow(u0 / w0 - u1 / w1, 2);
+            if (variance > maxVariance) {
+                maxVariance = variance;
+                bestThreshold = threshold;
+            }
+        }
+        return bestThreshold;
+    }
+}
+class Mat {
+    rows;
+    cols;
+    channels;
+    size;
+    data;
+    constructor(imageData) {
+        this.rows = imageData.height;
+        this.cols = imageData.width;
+        this.size = { width: imageData.width, height: imageData.height };
+        this.channels = 4;
+        this.data = imageData.data;
+    }
+    clone() {
+        const {
+            data,
+            size: { width, height }
+        } = this;
+        const uin = new Uint8ClampedArray(data);
+        const imageData = new ImageData(uin, width, height);
+        return new Mat(imageData);
+    }
+    delete() {
+        this.data = new Uint8ClampedArray(0);
+    }
+    update(row, col, ...args) {
+        const { data } = this;
+        const pixelAddress = this.getAddress(row, col);
+        for (let i = 0; i < 4; i++) {
+            if (args[i] !== void 0) {
+                data[pixelAddress[i]] = args[i];
+            }
+        }
+    }
+    getAddress(row, col) {
+        const { channels, cols } = this;
+        const R = cols * row * channels + col * channels;
+        return [R, R + 1, R + 2, R + 3];
+    }
+    recycle(callback) {
+        const { rows, cols } = this;
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                callback(this.at(row, col), row, col);
+            }
+        }
+    }
+    at(row, col) {
+        const { data } = this;
+        const [R, G, B, A] = this.getAddress(row, col);
+        return [data[R], data[G], data[B], data[A]];
+    }
+    // clip 是否缩放，注意这个缩放不会影响本身mat图片数据，只做展示缩放
+    imgshow(canvas, clip = false, clipWidth = 0, clipHeight = 0) {
+        const canvasEl = canvas instanceof HTMLCanvasElement ? canvas : document.querySelector(canvas);
+        if (!canvasEl) {
+            errorlog("\u65E0\u6CD5\u627E\u5230canvas\u5F53\u524D\u5143\u7D20\uFF01");
+        }
+        const { data, size } = this;
+        const { width, height } = size;
+        const imageData = new ImageData(data, width, height);
+        const ctx = canvasEl.getContext("2d");
+        if (clip) {
+            canvasEl.width = clipWidth;
+            canvasEl.height = clipHeight;
+            window.createImageBitmap(imageData, {
+                resizeHeight: clipHeight,
+                resizeWidth: clipWidth
+            }).then((imageBitmap) => {
+                ctx.drawImage(imageBitmap, 0, 0);
+            });
+        } else {
+            canvasEl.width = width;
+            canvasEl.height = height;
+            ctx.putImageData(imageData, 0, 0, 0, 0, canvasEl.width, canvasEl.height);
+        }
+    }
+    toDataUrl(type, quality = 1) {
+        const canvas = document.createElement("canvas");
+        this.imgshow(canvas);
+        return canvas.toDataURL(type ?? "image/png", quality);
+    }
+    toBlob(type, quality = 1) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement("canvas");
+            this.imgshow(canvas);
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob || !blob.size) {
+                        return reject(new Error("\u8F6C\u6362\u5931\u8D25\uFF1A\u4E0D\u5B58\u5728\u7684blob\u6216blob\u5927\u5C0F\u4E3A\u7A7A"));
+                    }
+                    resolve(blob);
+                },
+                type ?? "image/png",
+                quality
+            );
+        });
+    }
+}
+const pw = new PixelWind();
+export {
+    pw
+};
