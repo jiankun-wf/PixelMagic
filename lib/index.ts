@@ -72,9 +72,9 @@ class PixelWind {
 
   // 镜像反转
   FILP = {
-    X = 1,
-    Y = 2,
-    XY = 3,
+    X: 1,
+    Y: 2,
+    XY: 3,
   }
   flip(mat: Mat, mode = this.FILP.X) {
 
@@ -106,11 +106,11 @@ class PixelWind {
 
   RESIZE = {
     // 最临近值算法 计算速度最快，质量差
-    INTER_NEAREST = 1,
+    INTER_NEAREST: 1,
     // 双线性插值  计算速度适中，质量一般（默认）
-    INTER_LINEAR = 2,
+    INTER_LINEAR: 2,
     // 三次样条插值  计算速度较慢，质量最好
-    INTER_CUBIC = 3,
+    INTER_CUBIC: 3,
     //
     // INTER_AREA: 4,
     //
