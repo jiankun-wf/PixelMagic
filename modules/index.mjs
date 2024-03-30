@@ -46,8 +46,9 @@ class PixelWind {
     Y: 2,
     XY: 3
   };
+  // 镜像翻转 x轴，y轴，对角线
   flip(mat, mode = this.FILP.XY) {
-    const { size, rows, cols } = mat;
+    const { size, data, rows, cols } = mat;
     const { width, height } = size;
     const nMat = new Mat(
       new ImageData(new Uint8ClampedArray(rows * cols * 4), width, height)
@@ -734,6 +735,8 @@ class PixelWind {
   }
 }
 class Mat {
+  static maxPixelSplitWidth = 500;
+  static maxPixelSplitHeight = 500;
   rows;
   cols;
   channels;
@@ -772,6 +775,68 @@ class Mat {
     const R = cols * row * channels + col * channels;
     return [R, R + 1, R + 2, R + 3];
   }
+  // static group(
+  //   w: number,
+  //   h: number,
+  //   max: number,
+  //   startX: number,
+  //   startY: number
+  // ) {
+  //   const maxChannels = navigator.hardwareConcurrency; // 最大线程数;
+  //   const maxW = Mat.maxPixelSplitWidth;
+  //   const maxH = Mat.maxPixelSplitHeight;
+  //   // 计算每个小块的数量
+  //   const cols: number = Math.floor(w / maxW);
+  //   const rows: number = Math.floor(h / maxH);
+  //   const totalBlocks: number = cols * rows;
+  //   // 计算每个小块的宽度和高度
+  //   const blockWidth: number = maxW;
+  //   const blockHeight: number = maxH;
+  //   const result: number[][][] = [];
+  //   let blockCount = 0;
+  //   // 遍历每个小块
+  //   for (let i = 0; i < cols; i++) {
+  //     for (let j = 0; j < rows; j++) {
+  //       const sX: number = i * blockWidth;
+  //       const sY: number = j * blockHeight;
+  //       const eX: number = startX + blockWidth;
+  //       const eY: number = startY + blockHeight;
+  //       result.push([sX + startX, sY + startY, eX + startX, eY + startY]);
+  //       blockCount++;
+  //       // 如果达到了最大切块数，则停止
+  //       if (blockCount === 12) {
+  //         return result;
+  //       }
+  //     }
+  //   }
+  //   return result;
+  // }
+  // 多线程循环
+  // parallelForRecycle(
+  //   callback: (pixel: Pixel, row: number, col: number) => void,
+  //   startX = 0,
+  //   endX = this.rows,
+  //   startY = 0,
+  //   endY = this.cols
+  // ) {
+  //   const maxChannels = navigator.hardwareConcurrency;
+  //   if (
+  //     maxChannels <= 1 ||
+  //     this.rows * this.cols <= Mat.maxPixelSplitHeight * Mat.maxPixelSplitWidth
+  //   ) {
+  //     return this.recycle(callback, startX, endX, startY, endY);
+  //   }
+  //   const groups = Mat.group(
+  //     endX - startX,
+  //     endY - startY,
+  //     maxChannels,
+  //     startX,
+  //     endX,
+  //     startY,
+  //     endY
+  //   );
+  //   const works: Worker[] = [];
+  // }
   recycle(callback, startX = 0, endX = this.rows, startY = 0, endY = this.cols) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {

@@ -948,6 +948,9 @@ class PixelWind {
 
 // 图像数据类，不爆露
 class Mat {
+  static maxPixelSplitWidth = 500;
+  static maxPixelSplitHeight = 500;
+
   rows: number;
   cols: number;
   channels: number;
@@ -1002,6 +1005,79 @@ class Mat {
 
     return [R, R + 1, R + 2, R + 3];
   }
+
+  // static group(
+  //   w: number,
+  //   h: number,
+  //   max: number,
+  //   startX: number,
+  //   startY: number
+  // ) {
+  //   const maxChannels = navigator.hardwareConcurrency; // 最大线程数;
+
+  //   const maxW = Mat.maxPixelSplitWidth;
+  //   const maxH = Mat.maxPixelSplitHeight;
+  //   // 计算每个小块的数量
+  //   const cols: number = Math.floor(w / maxW);
+  //   const rows: number = Math.floor(h / maxH);
+  //   const totalBlocks: number = cols * rows;
+
+  //   // 计算每个小块的宽度和高度
+  //   const blockWidth: number = maxW;
+  //   const blockHeight: number = maxH;
+
+  //   const result: number[][][] = [];
+
+  //   let blockCount = 0;
+
+  //   // 遍历每个小块
+  //   for (let i = 0; i < cols; i++) {
+  //     for (let j = 0; j < rows; j++) {
+  //       const sX: number = i * blockWidth;
+  //       const sY: number = j * blockHeight;
+  //       const eX: number = startX + blockWidth;
+  //       const eY: number = startY + blockHeight;
+
+  //       result.push([sX + startX, sY + startY, eX + startX, eY + startY]);
+  //       blockCount++;
+
+  //       // 如果达到了最大切块数，则停止
+  //       if (blockCount === 12) {
+  //         return result;
+  //       }
+  //     }
+  //   }
+
+  //   return result;
+  // }
+
+  // 多线程循环
+  // parallelForRecycle(
+  //   callback: (pixel: Pixel, row: number, col: number) => void,
+  //   startX = 0,
+  //   endX = this.rows,
+  //   startY = 0,
+  //   endY = this.cols
+  // ) {
+  //   const maxChannels = navigator.hardwareConcurrency;
+  //   if (
+  //     maxChannels <= 1 ||
+  //     this.rows * this.cols <= Mat.maxPixelSplitHeight * Mat.maxPixelSplitWidth
+  //   ) {
+  //     return this.recycle(callback, startX, endX, startY, endY);
+  //   }
+  //   const groups = Mat.group(
+  //     endX - startX,
+  //     endY - startY,
+  //     maxChannels,
+  //     startX,
+  //     endX,
+  //     startY,
+  //     endY
+  //   );
+  //   const works: Worker[] = [];
+     const w = new Worker('./exec.worker.ts');
+  // }
 
   recycle(
     callback: (pixel: Pixel, row: number, col: number) => void | "break",
