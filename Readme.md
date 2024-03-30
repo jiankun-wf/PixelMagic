@@ -9,9 +9,9 @@
 ## 1. 读取图像
 
 `import { pw } from 'lib/index.ts'`<br>
-`pw.readAsElement(HTMLImgElement)`<br>
-`pw.readAsDataUrl(src)`<br>
-`pw.readAsBlob(blob)`<br>
+`const mat = pw.readAsElement(HTMLImgElement)`<br>
+`const mat = await pw.readAsDataUrl(src)`<br>
+`const mat = await pw.readAsBlob(blob)`<br>
 
 ## 2. 操作
 
