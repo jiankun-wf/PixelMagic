@@ -84,6 +84,9 @@
           <div class="cu-btn primary small" @click="handleToFlipX()">X轴镜像翻转</div>
           <div class="cu-btn primary small" @click="handleToFlipY()">Y轴镜像翻转</div>
           <div class="cu-btn primary small" @click="handleToFlipXY()">对角线反转</div>
+          <div class="cu-btn white bordered small" @click="handleMedianBlur()">中值滤波</div>
+          <div class="cu-btn white bordered small" @click="handleGaussianBlur()">高斯滤波</div>
+          <div class="cu-btn white bordered small" @click="handleMeanBlur()">均值滤波</div>
         </div>
 
 
@@ -263,10 +266,7 @@
         mat.recycle((pixel, row, col) => {
           const A = pixel[3]
           if (A === 0) {
-            mat.update(row, col, "R", 255);
-            mat.update(row, col, "G", 255);
-            mat.update(row, col, "B", 255);
-            mat.update(row, col, "A", 255);
+            mat.update(row, col, 255, 255, 255, 255);
           }
         });
         if (!arguments.length) {
@@ -346,7 +346,7 @@
         mat = mat || this.saveMat;
         if (!mat) return;
 
-        const nMat = pw.clip(mat, 0, 0, 500, 500);
+        const nMat = pw.clip(mat, 200,200, 200, 300);
         if (!arguments.length) {
           this.saveMat = nMat.clone();
           nMat.delete();
@@ -388,6 +388,38 @@
         if (!arguments.length) {
           this.saveMat = nMat.clone();
           nMat.delete();
+          this.handleShowImg();
+        }
+      },
+      handleMedianBlur(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        pw.medianBlur(mat, 5)
+        if (!arguments.length) {
+          this.saveMat = mat.clone();
+          mat.delete();
+          this.handleShowImg();
+        } 
+      },
+      handleGaussianBlur(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        console.time('gaussianBlur')
+        pw.gaussianBlur(mat, 3, 10, 10);
+        console.timeEnd('gaussianBlur')
+        if (!arguments.length) {
+          this.saveMat = mat.clone();
+          mat.delete();
+          this.handleShowImg();
+        }
+      },
+      handleMeanBlur(mat = null) {
+        mat = mat || this.saveMat;
+        if (!mat) return;
+        pw.meanBlur(mat, 5)
+        if (!arguments.length) {
+          this.saveMat = mat.clone();
+          mat.delete();
           this.handleShowImg();
         }
       },

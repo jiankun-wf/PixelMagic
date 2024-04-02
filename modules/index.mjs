@@ -53,44 +53,44 @@ class PixelWind {
     const nMat = new Mat(
       new ImageData(new Uint8ClampedArray(rows * cols * 4), width, height)
     );
-    const halfX = rows % 2 === 0 ? Math.floor(rows / 2) : Math.floor(rows / 2) + 1;
-    const halfY = cols % 2 === 0 ? Math.floor(cols / 2) : Math.floor(cols / 2) + 1;
+    const halfHeight = rows % 2 === 0 ? Math.floor(rows / 2) : Math.floor(rows / 2) + 1;
+    const halfWidth = cols % 2 === 0 ? Math.floor(cols / 2) : Math.floor(cols / 2) + 1;
     switch (mode) {
       case this.FILP.X:
         mat.recycle(
           (pixel, row, col) => {
-            const flipY = cols - col - 1;
+            const flipX = cols - row - 1;
+            const [R, G, B, A] = pixel;
+            const [RR, GG, BB, AA] = mat.at(flipX, col);
+            nMat.update(row, col, RR, GG, BB, AA);
+            nMat.update(flipX, col, R, G, B, A);
+          },
+          0,
+          halfWidth,
+          0,
+          rows
+        );
+        return nMat;
+      case this.FILP.Y:
+        mat.recycle(
+          (pixel, row, col) => {
+            const flipY = rows - col - 1;
             const [R, G, B, A] = pixel;
             const [RR, GG, BB, AA] = mat.at(row, flipY);
             nMat.update(row, col, RR, GG, BB, AA);
             nMat.update(row, flipY, R, G, B, A);
           },
           0,
-          rows,
+          cols,
           0,
-          halfY
-        );
-        return nMat;
-      case this.FILP.Y:
-        mat.recycle(
-          (pixel, row, col) => {
-            const filpX = rows - row - 1;
-            const [R, G, B, A] = pixel;
-            const [RR, GG, BB, AA] = mat.at(filpX, col);
-            nMat.update(row, col, RR, GG, BB, AA);
-            nMat.update(filpX, col, R, G, B, A);
-          },
-          0,
-          halfX,
-          0,
-          cols
+          halfHeight
         );
         return nMat;
       case this.FILP.XY:
         mat.recycle(
           (pixel, row, col) => {
-            const filpX = rows - row - 1;
-            const flipY = cols - col - 1;
+            const filpX = cols - row - 1;
+            const flipY = rows - col - 1;
             const [R, G, B, A] = pixel;
             const [RR, GG, BB, AA] = mat.at(filpX, flipY);
             nMat.update(row, col, RR, GG, BB, AA);
@@ -99,7 +99,7 @@ class PixelWind {
           0,
           rows,
           0,
-          halfY
+          halfHeight
         );
         return nMat;
     }
@@ -109,17 +109,19 @@ class PixelWind {
     const {
       size: { width: mWidth, height: mHeight }
     } = mat;
-    const endX = Math.min(x + width, mWidth);
-    const endY = Math.min(y + height, mHeight);
+    // const endX = Math.min(x + width, mWidth);
+    // const endY = Math.min(y + height, mHeight);
     const startX = Math.max(x, 0);
     const startY = Math.max(y, 0);
-    const dirx = endX - startX;
-    const diry = endY - startY;
     const newMat = new Mat(
-      new ImageData(new Uint8ClampedArray(dirx * diry * 4), diry, dirx)
+      new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
     newMat.recycle((pixel, row, col) => {
-      const [R, G, B, A] = mat.at(row, col);
+
+      const x = Math.min(mWidth - 1, row + startX);
+      const y = Math.min(mHeight - 1, col + startY);
+
+      const [R, G, B, A] = mat.at(x, y);
       newMat.update(row, col, R, G, B, A);
     });
     return newMat;
@@ -322,6 +324,7 @@ class PixelWind {
     }
     const half = -Math.floor(size / 2);
     const absHalf = Math.abs(half);
+    const { rows, cols } = mat;
     mat.recycle((_pixel, row, col) => {
       const gsv = {
         R: [],
@@ -331,11 +334,11 @@ class PixelWind {
       };
       for (let i = half; i <= absHalf; i++) {
         let offsetX = row + i;
-        if (offsetX < 0 || offsetX >= mat.rows)
+        if (offsetX < 0 || offsetX >= cols)
           continue;
         for (let j = half; j <= absHalf; j++) {
           let offsetY = col + j;
-          if (offsetY < 0 || offsetY >= mat.cols)
+          if (offsetY < 0 || offsetY >= rows)
             continue;
           const [R, G, B, A] = mat.at(offsetX, offsetY);
           gsv.R.push(R);
@@ -391,9 +394,9 @@ class PixelWind {
           let offsetX = row + kx - half;
           let offsetY = col + ky - half;
           offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.rows - 1);
+          offsetX = Math.min(offsetX, mat.cols - 1);
           offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.cols - 1);
+          offsetY = Math.min(offsetY, mat.rows - 1);
           const rate = gaussianKernel[kx][ky];
           const [R, G, B, A] = mat.at(offsetX, offsetY);
           NR += R * rate;
@@ -427,9 +430,9 @@ class PixelWind {
           let offsetX = row + kx - half;
           let offsetY = col + ky - half;
           offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.rows - 1);
+          offsetX = Math.min(offsetX, mat.cols - 1);
           offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.cols - 1);
+          offsetY = Math.min(offsetY, mat.rows - 1);
           const [R, G, B, A] = mat.at(offsetX, offsetY);
           NR += R;
           NG += G;
@@ -806,45 +809,49 @@ class Mat {
   }
   getAddress(row, col) {
     const { channels, cols } = this;
-    const R = cols * row * channels + col * channels;
+    const R = cols * col * channels + row * channels;
     return [R, R + 1, R + 2, R + 3];
   }
   // 多线程循环;
-  parallelRecycle(callback) {
-    const maxChannels = navigator.hardwareConcurrency;
-    if (maxChannels <= 1 || this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight) {
-      return this.recycle(callback);
-    }
-    return new Promise((resolve) => {
-      const {
-        size: { width, height }
-      } = this;
-      const groups = Mat.group(width, height);
-      const works = [];
-      let completeCount = 0;
-      for (let i = 0; i < groups.length; i++) {
-        const { x1, y1, x2, y2 } = groups[i];
-        const worker = new Worker("./modules/exec.work.js");
-        worker.onmessage = (e) => {
-          completeCount++;
-          if (completeCount === works.length) {
-            console.log(this);
-            resolve("success");
-          }
-        };
-        works.push(worker);
-        worker.postMessage({
-          callback,
-          mat: this,
-          startX: x1,
-          startY: y1,
-          endX: x2,
-          endY: y2
-        });
-      }
-    });
-  }
-  recycle(callback, startX = 0, endX = this.rows, startY = 0, endY = this.cols) {
+  // parallelForRecycle(
+  //   callback: (pixel: Pixel, row: number, col: number) => void
+  // ) {
+  //   const maxChannels = navigator.hardwareConcurrency;
+  //   if (
+  //     maxChannels <= 1 ||
+  //     this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
+  //   ) {
+  //     return this.recycle(callback);
+  //   }
+  //   return new Promise((resolve) => {
+  //     const {
+  //       size: { width, height },
+  //     } = this;
+  //     const groups = Mat.group(width, height);
+  //     const works: Worker[] = [];
+  //     let completeCount = 0;
+  //     for (let i = 0; i < groups.length; i++) {
+  //       const { x1, y1, x2, y2 } = groups[i];
+  //       const worker = new Worker("./exec.worker.js");
+  //       worker.onmessage = (e: MessageEvent) => {
+  //         completeCount++;
+  //         if (completeCount === works.length) {
+  //           resolve("success");
+  //         }
+  //       };
+  //       works.push(worker);
+  //       worker.postMessage({
+  //         callback,
+  //         mat: this,
+  //         startX: x1,
+  //         startY: y1,
+  //         endX: x2,
+  //         endY: y2,
+  //       });
+  //     }
+  //   });
+  // }
+  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
         callback(this.at(row, col), row, col);

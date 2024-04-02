@@ -84,47 +84,47 @@ class PixelWind {
       new ImageData(new Uint8ClampedArray(rows * cols * 4), width, height)
     );
 
-    const halfX =
+    const halfHeight =
       rows % 2 === 0 ? Math.floor(rows / 2) : Math.floor(rows / 2) + 1;
-    const halfY =
+    const halfWidth =
       cols % 2 === 0 ? Math.floor(cols / 2) : Math.floor(cols / 2) + 1;
 
     switch (mode) {
       case this.FILP.X:
         mat.recycle(
           (pixel, row, col) => {
-            const flipY = cols - col - 1;
+            const flipX = cols - row - 1;
+            const [R, G, B, A] = pixel;
+            const [RR, GG, BB, AA] = mat.at(flipX, col);
+            nMat.update(row, col, RR, GG, BB, AA);
+            nMat.update(flipX, col, R, G, B, A);
+          },
+          0,
+          halfWidth,
+          0,
+          rows
+        );
+        return nMat;
+      case this.FILP.Y:
+        mat.recycle(
+          (pixel, row, col) => {
+            const flipY = rows - col - 1;
             const [R, G, B, A] = pixel;
             const [RR, GG, BB, AA] = mat.at(row, flipY);
             nMat.update(row, col, RR, GG, BB, AA);
             nMat.update(row, flipY, R, G, B, A);
           },
           0,
-          rows,
+          cols,
           0,
-          halfY
-        );
-        return nMat;
-      case this.FILP.Y:
-        mat.recycle(
-          (pixel, row, col) => {
-            const filpX = rows - row - 1;
-            const [R, G, B, A] = pixel;
-            const [RR, GG, BB, AA] = mat.at(filpX, col);
-            nMat.update(row, col, RR, GG, BB, AA);
-            nMat.update(filpX, col, R, G, B, A);
-          },
-          0,
-          halfX,
-          0,
-          cols
+          halfHeight
         );
         return nMat;
       case this.FILP.XY:
         mat.recycle(
           (pixel, row, col) => {
-            const filpX = rows - row - 1;
-            const flipY = cols - col - 1;
+            const filpX = cols - row - 1;
+            const flipY = rows - col - 1;
             const [R, G, B, A] = pixel;
             const [RR, GG, BB, AA] = mat.at(filpX, flipY);
             nMat.update(row, col, RR, GG, BB, AA);
@@ -133,7 +133,7 @@ class PixelWind {
           0,
           rows,
           0,
-          halfY
+          halfHeight
         );
         return nMat;
     }
@@ -149,11 +149,8 @@ class PixelWind {
     const startX = Math.max(x, 0);
     const startY = Math.max(y, 0);
 
-    const dirx = endX - startX;
-    const diry = endY - startY;
-
     const newMat = new Mat(
-      new ImageData(new Uint8ClampedArray(dirx * diry * 4), diry, dirx)
+      new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
 
     newMat.recycle((pixel, row, col) => {
@@ -415,6 +412,7 @@ class PixelWind {
     }
     const half = -Math.floor(size / 2);
     const absHalf = Math.abs(half);
+    const { rows, cols } = mat;
     mat.recycle((_pixel, row, col) => {
       const gsv: { R: number[]; G: number[]; B: number[]; A: number[] } = {
         R: [],
@@ -425,10 +423,10 @@ class PixelWind {
       // size * size 的像素矩阵
       for (let i = half; i <= absHalf; i++) {
         let offsetX = row + i;
-        if (offsetX < 0 || offsetX >= mat.rows) continue;
+        if (offsetX < 0 || offsetX >= cols) continue;
         for (let j = half; j <= absHalf; j++) {
           let offsetY = col + j;
-          if (offsetY < 0 || offsetY >= mat.cols) continue;
+          if (offsetY < 0 || offsetY >= rows) continue;
 
           const [R, G, B, A] = mat.at(offsetX, offsetY);
           gsv.R.push(R);
@@ -500,10 +498,10 @@ class PixelWind {
           let offsetY = col + ky - half;
 
           offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.rows - 1);
+          offsetX = Math.min(offsetX, mat.cols - 1);
 
           offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.cols - 1);
+          offsetY = Math.min(offsetY, mat.rows - 1);
 
           const rate = gaussianKernel[kx][ky];
 
@@ -548,10 +546,10 @@ class PixelWind {
           let offsetY = col + ky - half;
 
           offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.rows - 1);
+          offsetX = Math.min(offsetX, mat.cols - 1);
 
           offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.cols - 1);
+          offsetY = Math.min(offsetY, mat.rows - 1);
 
           const [R, G, B, A] = mat.at(offsetX, offsetY);
 
@@ -1048,7 +1046,8 @@ class Mat {
     // 一行的列数 * 所在行数 * 通道数 为走过的行像素数；
     // 所在列数 * 通道数为 该行走过的列数；
     // 则 R为所得的索引值 G、B、A那就都有了
-    const R = cols * row * channels + col * channels;
+
+    const R = cols * col * channels + row * channels;
 
     return [R, R + 1, R + 2, R + 3];
   }
@@ -1101,9 +1100,9 @@ class Mat {
   recycle(
     callback: (pixel: Pixel, row: number, col: number) => void | "break",
     startX = 0,
-    endX = this.rows,
+    endX = this.cols,
     startY = 0,
-    endY = this.cols
+    endY = this.rows
   ) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
