@@ -144,17 +144,16 @@ class PixelWind {
       size: { width: mWidth, height: mHeight },
     } = mat;
 
-    const endX = Math.min(x + width, mWidth);
-    const endY = Math.min(y + height, mHeight);
     const startX = Math.max(x, 0);
     const startY = Math.max(y, 0);
-
     const newMat = new Mat(
       new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
-
     newMat.recycle((pixel, row, col) => {
-      const [R, G, B, A] = mat.at(row + startX, col + startY);
+      const x = Math.min(mWidth - 1, row + startX);
+      const y = Math.min(mHeight - 1, col + startY);
+
+      const [R, G, B, A] = mat.at(x, y);
       newMat.update(row, col, R, G, B, A);
     });
     return newMat;
@@ -945,55 +944,64 @@ class PixelWind {
 }
 
 // 图像数据类，不爆露
-class Mat {
+export class Mat {
   // 最小分割宽高
   static minPixelSplitWidth = 400;
   static minPixelSplitHeight = 400;
 
   static group(width: number, height: number) {
-    const minW = this.minPixelSplitWidth;
-    const minH = this.minPixelSplitHeight;
     const m = window.navigator.hardwareConcurrency;
 
-    const totalArea = width * height;
-    if (m < 1 || minW <= 0 || minH <= 0 || totalArea <= 0) {
-      return null; // Invalid input
-    }
+    const points: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    // 均分处理的像素至每个进程
+    if (width >= height) {
+      const splitAddress = Math.floor(width / m) - 1;
+      const extraAddress = (width % m) - 1;
+      let cw = 0;
+      while (cw < m) {
+        if (points.length < m) {
+          points.push({
+            x1: cw,
+            y1: 0,
+            x2: cw + splitAddress,
+            y2: height - 1,
+          });
+        } else {
+          points.push({
+            x1: cw,
+            y1: 0,
+            x2: cw + splitAddress + extraAddress,
+            y2: height - 1,
+          });
+        }
 
-    const minArea = minW * minH * m;
-    if (totalArea < minArea) {
-      return null; // Not enough area to satisfy the minimum requirements
-    }
+        cw += splitAddress + 1;
+      }
+    } else {
+      const splitAddress = Math.floor(height / m) - 1;
+      const extraAddress = (height % m) - 1;
+      let ch = 0;
+      while (ch < m) {
+        if (points.length < m) {
+          points.push({
+            x1: 0,
+            y1: ch,
+            x2: width - 1,
+            y2: ch + splitAddress,
+          });
+        } else {
+          points.push({
+            x1: 0,
+            y1: ch,
+            x2: width - 1,
+            y2: ch + splitAddress + extraAddress,
+          });
+        }
 
-    const blocks: { x1: number; y1: number; x2: number; y2: number }[] = [];
-
-    // Try to evenly split the paper
-    const minDimension = Math.min(width, height);
-    const maxBlocks = Math.min(
-      m,
-      Math.floor(minDimension / Math.min(minW, minH))
-    );
-
-    const numRows = Math.ceil(Math.sqrt(maxBlocks));
-    const numCols = Math.ceil(maxBlocks / numRows);
-
-    const blockWidth = Math.floor(width / numCols);
-    const blockHeight = Math.floor(height / numRows);
-
-    for (let i = 0; i < numRows; i++) {
-      for (let j = 0; j < numCols; j++) {
-        const x1 = j * blockWidth;
-        const y1 = i * blockHeight;
-        const x2 =
-          x1 + Math.max(minW, Math.min(width - j * blockWidth, blockWidth));
-        const y2 =
-          y1 + Math.max(minH, Math.min(height - i * blockHeight, blockHeight));
-
-        blocks.push({ x1, y1, x2, y2 });
+        ch += splitAddress + 1;
       }
     }
-
-    return blocks;
+    return points;
   }
 
   rows: number;
@@ -1053,49 +1061,49 @@ class Mat {
   }
 
   // 多线程循环;
-  // parallelForRecycle(
-  //   callback: (pixel: Pixel, row: number, col: number) => void
-  // ) {
-  //   const maxChannels = navigator.hardwareConcurrency;
-  //   if (
-  //     maxChannels <= 1 ||
-  //     this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
-  //   ) {
-  //     return this.recycle(callback);
-  //   }
-  //   return new Promise((resolve) => {
-  //     const {
-  //       size: { width, height },
-  //     } = this;
-  //     const groups = Mat.group(width, height);
+  parallelForRecycle(
+    callback: (pixel: Pixel, row: number, col: number) => void
+  ) {
+    const maxChannels = navigator.hardwareConcurrency;
+    if (
+      maxChannels <= 1 ||
+      this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
+    ) {
+      return this.recycle(callback);
+    }
+    return new Promise((resolve) => {
+      const {
+        size: { width, height },
+      } = this;
+      const groups = Mat.group(width, height);
 
-  //     const works: Worker[] = [];
-  //     let completeCount = 0;
+      const works: Worker[] = [];
+      let completeCount = 0;
 
-  //     for (let i = 0; i < groups.length; i++) {
-  //       const { x1, y1, x2, y2 } = groups[i];
+      for (let i = 0; i < groups.length; i++) {
+        const { x1, y1, x2, y2 } = groups[i];
 
-  //       const worker = new Worker("./exec.worker.js");
+        const worker = new Worker("./exec.worker.js");
 
-  //       worker.onmessage = (e: MessageEvent) => {
-  //         completeCount++;
-  //         if (completeCount === works.length) {
-  //           resolve("success");
-  //         }
-  //       };
-  //       works.push(worker);
+        worker.onmessage = (e: MessageEvent) => {
+          completeCount++;
+          if (completeCount === works.length) {
+            resolve("success");
+          }
+        };
+        works.push(worker);
 
-  //       worker.postMessage({
-  //         callback,
-  //         mat: this,
-  //         startX: x1,
-  //         startY: y1,
-  //         endX: x2,
-  //         endY: y2,
-  //       });
-  //     }
-  //   });
-  // }
+        worker.postMessage({
+          callback,
+          mat: this,
+          startX: x1,
+          startY: y1,
+          endX: x2,
+          endY: y2,
+        });
+      }
+    });
+  }
 
   recycle(
     callback: (pixel: Pixel, row: number, col: number) => void | "break",
