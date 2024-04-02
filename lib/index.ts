@@ -157,7 +157,7 @@ class PixelWind {
     );
 
     newMat.recycle((pixel, row, col) => {
-      const [R, G, B, A] = mat.at(row, col);
+      const [R, G, B, A] = mat.at(row + startX, col + startY);
       newMat.update(row, col, R, G, B, A);
     });
     return newMat;
