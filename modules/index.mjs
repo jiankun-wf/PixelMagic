@@ -735,8 +735,42 @@ class PixelWind {
   }
 }
 class Mat {
-  static maxPixelSplitWidth = 500;
-  static maxPixelSplitHeight = 500;
+  // 最小分割宽高
+  static minPixelSplitWidth = 400;
+  static minPixelSplitHeight = 400;
+  static group(width, height) {
+    const minW = this.minPixelSplitWidth;
+    const minH = this.minPixelSplitHeight;
+    const m = window.navigator.hardwareConcurrency;
+    const totalArea = width * height;
+    if (m < 1 || minW <= 0 || minH <= 0 || totalArea <= 0) {
+      return null;
+    }
+    const minArea = minW * minH * m;
+    if (totalArea < minArea) {
+      return null;
+    }
+    const blocks = [];
+    const minDimension = Math.min(width, height);
+    const maxBlocks = Math.min(
+      m,
+      Math.floor(minDimension / Math.min(minW, minH))
+    );
+    const numRows = Math.ceil(Math.sqrt(maxBlocks));
+    const numCols = Math.ceil(maxBlocks / numRows);
+    const blockWidth = Math.floor(width / numCols);
+    const blockHeight = Math.floor(height / numRows);
+    for (let i = 0; i < numRows; i++) {
+      for (let j = 0; j < numCols; j++) {
+        const x1 = j * blockWidth;
+        const y1 = i * blockHeight;
+        const x2 = x1 + Math.max(minW, Math.min(width - j * blockWidth, blockWidth));
+        const y2 = y1 + Math.max(minH, Math.min(height - i * blockHeight, blockHeight));
+        blocks.push({ x1, y1, x2, y2 });
+      }
+    }
+    return blocks;
+  }
   rows;
   cols;
   channels;
@@ -775,68 +809,41 @@ class Mat {
     const R = cols * row * channels + col * channels;
     return [R, R + 1, R + 2, R + 3];
   }
-  // static group(
-  //   w: number,
-  //   h: number,
-  //   max: number,
-  //   startX: number,
-  //   startY: number
-  // ) {
-  //   const maxChannels = navigator.hardwareConcurrency; // 最大线程数;
-  //   const maxW = Mat.maxPixelSplitWidth;
-  //   const maxH = Mat.maxPixelSplitHeight;
-  //   // 计算每个小块的数量
-  //   const cols: number = Math.floor(w / maxW);
-  //   const rows: number = Math.floor(h / maxH);
-  //   const totalBlocks: number = cols * rows;
-  //   // 计算每个小块的宽度和高度
-  //   const blockWidth: number = maxW;
-  //   const blockHeight: number = maxH;
-  //   const result: number[][][] = [];
-  //   let blockCount = 0;
-  //   // 遍历每个小块
-  //   for (let i = 0; i < cols; i++) {
-  //     for (let j = 0; j < rows; j++) {
-  //       const sX: number = i * blockWidth;
-  //       const sY: number = j * blockHeight;
-  //       const eX: number = startX + blockWidth;
-  //       const eY: number = startY + blockHeight;
-  //       result.push([sX + startX, sY + startY, eX + startX, eY + startY]);
-  //       blockCount++;
-  //       // 如果达到了最大切块数，则停止
-  //       if (blockCount === 12) {
-  //         return result;
-  //       }
-  //     }
-  //   }
-  //   return result;
-  // }
-  // 多线程循环
-  // parallelForRecycle(
-  //   callback: (pixel: Pixel, row: number, col: number) => void,
-  //   startX = 0,
-  //   endX = this.rows,
-  //   startY = 0,
-  //   endY = this.cols
-  // ) {
-  //   const maxChannels = navigator.hardwareConcurrency;
-  //   if (
-  //     maxChannels <= 1 ||
-  //     this.rows * this.cols <= Mat.maxPixelSplitHeight * Mat.maxPixelSplitWidth
-  //   ) {
-  //     return this.recycle(callback, startX, endX, startY, endY);
-  //   }
-  //   const groups = Mat.group(
-  //     endX - startX,
-  //     endY - startY,
-  //     maxChannels,
-  //     startX,
-  //     endX,
-  //     startY,
-  //     endY
-  //   );
-  //   const works: Worker[] = [];
-  // }
+  // 多线程循环;
+  parallelRecycle(callback) {
+    const maxChannels = navigator.hardwareConcurrency;
+    if (maxChannels <= 1 || this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight) {
+      return this.recycle(callback);
+    }
+    return new Promise((resolve) => {
+      const {
+        size: { width, height }
+      } = this;
+      const groups = Mat.group(width, height);
+      const works = [];
+      let completeCount = 0;
+      for (let i = 0; i < groups.length; i++) {
+        const { x1, y1, x2, y2 } = groups[i];
+        const worker = new Worker("./modules/exec.work.js");
+        worker.onmessage = (e) => {
+          completeCount++;
+          if (completeCount === works.length) {
+            console.log(this);
+            resolve("success");
+          }
+        };
+        works.push(worker);
+        worker.postMessage({
+          callback,
+          mat: this,
+          startX: x1,
+          startY: y1,
+          endX: x2,
+          endY: y2
+        });
+      }
+    });
+  }
   recycle(callback, startX = 0, endX = this.rows, startY = 0, endY = this.cols) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
