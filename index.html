@@ -74,7 +74,7 @@
 
         <div class="one-shot-tool">
           <div class="cu-btn primary small" @click="handleDropWhite()">留白去除</div>
-          <div class="cu-btn primary small" @click="handleDropTransparent()">透明度变白</div>
+          <div class="cu-btn primary small" @click="handleDropTransparent()">多线程测试</div>
           <div class="cu-btn white bordered small" @click="handleToGray()">灰度滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToGroundGlass()">毛玻璃滤镜</div>
           <div class="cu-btn white bordered small" @click="handleToNostalgiaFilter()">复古滤镜</div>
@@ -265,16 +265,18 @@
         mat = mat || this.saveMat;
         if (!mat) return;
         const d = performance.now();
-        const nMat = await mat.parallelForRecycle();
+        const nMat = await mat.parallelForRecycle((pixel, row, col, nMat, nRow, nCol) => {
+            nMat.update(nRow, nCol, 0, 0, 0, 100); 
+        });
         const e = performance.now();
         console.log(`image deal with Multi-threaded：${(e - d )}ms`);
 
-        const d2 = performance.now();
-        mat.recycle((_pixel, row, col) => {
-          mat.update(row, col, 128, 128, 128, 255);
-        })
-        const e2 = performance.now();
-        console.log(`image deal without Multi-threaded：${(e2 - d2)}ms`);
+        // const d2 = performance.now();
+        // mat.recycle((_pixel, row, col) => {
+        //   mat.update(row, col, 128, 128, 128, 255);
+        // })
+        // const e2 = performance.now();
+        // console.log(`image deal without Multi-threaded：${(e2 - d2)}ms`);
 
         if (!arguments.length) {
           this.saveMat = nMat.clone();

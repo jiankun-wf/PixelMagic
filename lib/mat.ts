@@ -97,7 +97,8 @@ export class Mat {
 
   // 多线程处理
   parallelForRecycle(
-    callback: (pixel: Pixel, row: number, col: number) => void
+    callback: (pixel: Pixel, row: number, col: number) => void,
+    ...args: any[]
   ) {
     const maxChannels = navigator.hardwareConcurrency;
     if (
@@ -114,7 +115,7 @@ export class Mat {
       } = this;
       const groups: ImageSplitChunk[] = Mat.group(width, height);
 
-      const works: Worker[] = [];
+      const workers: Worker[] = [];
       let completeCount = 0;
 
       for (let i = 0; i < groups.length; i++) {
@@ -126,7 +127,8 @@ export class Mat {
           const { data, index } = e.data;
           groups[i].data = data;
           completeCount++;
-          if (completeCount === works.length) {
+          worker.terminate();
+          if (completeCount === workers.length) {
             let total = 0;
             const resultArr = new Uint8ClampedArray(width * height * 4);
             for (let i = 0; i < groups.length; i++) {
@@ -135,9 +137,10 @@ export class Mat {
             }
             const newMat = new Mat(new ImageData(resultArr, width, height));
             resolve(newMat);
+            workers.splice(0, workers.length);
           }
         };
-        works.push(worker);
+        workers.push(worker);
 
         worker.postMessage({
           startX: x1,
@@ -148,6 +151,8 @@ export class Mat {
           width,
           height,
           index: i,
+          callbackStr: callback.toString(),
+          callbackArguments: args,
         });
       }
     });

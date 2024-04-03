@@ -1,6 +1,6 @@
 var import_mat = require("./mat");
 self.addEventListener("message", (e) => {
-  const { startX, startY, endX, endY, data, width, height, index, callbackStr } = e.data;
+  const { startX, startY, endX, endY, data, width, height, index, callbackStr, callbackArguments } = e.data;
   const imageData = new ImageData(data, width, height);
   const mat = new import_mat.Mat(imageData);
   const cw = endX - startX + 1;
@@ -8,9 +8,11 @@ self.addEventListener("message", (e) => {
   const nMat = new import_mat.Mat(
     new ImageData(new Uint8ClampedArray(cw * ch * 4), cw, ch)
   );
+  const callbackFunction = new Function("pixel", "row", "col", "...args", `return ${callbackStr}`);
+  const callback = callbackFunction();
   mat.recycle(
     (pixel, row, col) => {
-      nMat.update(row - startX, col - startY, 128, 128, 128, 255);
+      callback(pixel, row, col, nMat, row - startX, col - startY, ...callbackArguments);
     },
     startX,
     endX + 1,

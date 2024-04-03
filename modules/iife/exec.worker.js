@@ -9,6 +9,8 @@ var PixelWind = (() => {
     // 最小分割宽高
     static minPixelSplitWidth = 400;
     static minPixelSplitHeight = 400;
+    // 图像切片处理，当超过 minPixelSplitWidth * minPixelSplitHeight 时
+    // 分割为最大线程数的切片，交付每一个线程处理
     static group(width, height) {
       const m = window.navigator.hardwareConcurrency;
       const points = [];
@@ -75,7 +77,7 @@ var PixelWind = (() => {
       return [R, R + 1, R + 2, R + 3];
     }
     // 多线程处理
-    parallelForRecycle(callback) {
+    parallelForRecycle(callback, ...args) {
       const maxChannels = navigator.hardwareConcurrency;
       if (maxChannels <= 1 || this.rows * this.cols <= _Mat.minPixelSplitWidth * _Mat.minPixelSplitHeight) {
         return this.recycle(callback);
@@ -85,7 +87,7 @@ var PixelWind = (() => {
           size: { width, height }
         } = this;
         const groups = _Mat.group(width, height);
-        const works = [];
+        const workers = [];
         let completeCount = 0;
         for (let i = 0; i < groups.length; i++) {
           const { x1, y1, x2, y2 } = groups[i];
@@ -94,7 +96,8 @@ var PixelWind = (() => {
             const { data, index } = e.data;
             groups[i].data = data;
             completeCount++;
-            if (completeCount === works.length) {
+            worker.terminate();
+            if (completeCount === workers.length) {
               let total = 0;
               const resultArr = new Uint8ClampedArray(width * height * 4);
               for (let i2 = 0; i2 < groups.length; i2++) {
@@ -103,9 +106,10 @@ var PixelWind = (() => {
               }
               const newMat = new _Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
+              workers.splice(0, workers.length);
             }
           };
-          works.push(worker);
+          workers.push(worker);
           worker.postMessage({
             startX: x1,
             startY: y1,
@@ -114,7 +118,9 @@ var PixelWind = (() => {
             data: this.data,
             width,
             height,
-            index: i
+            index: i,
+            callbackStr: callback.toString(),
+            callbackArguments: args
           });
         }
       });
@@ -181,7 +187,7 @@ var PixelWind = (() => {
 
   // lib/exec.worker.ts
   self.addEventListener("message", (e) => {
-    const { startX, startY, endX, endY, data, width, height, index, callbackStr } = e.data;
+    const { startX, startY, endX, endY, data, width, height, index, callbackStr, callbackArguments } = e.data;
     const imageData = new ImageData(data, width, height);
     const mat = new Mat(imageData);
     const cw = endX - startX + 1;
@@ -189,9 +195,11 @@ var PixelWind = (() => {
     const nMat = new Mat(
       new ImageData(new Uint8ClampedArray(cw * ch * 4), cw, ch)
     );
+    const callbackFunction = new Function("pixel", "row", "col", "...args", `return ${callbackStr}`);
+    const callback = callbackFunction();
     mat.recycle(
       (pixel, row, col) => {
-        nMat.update(row - startX, col - startY, 128, 128, 128, 255);
+        callback(pixel, row, col, nMat, row - startX, col - startY, ...callbackArguments);
       },
       startX,
       endX + 1,
