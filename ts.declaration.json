@@ -23,7 +23,7 @@
       "noImplicitReturns": false,
       "allowUnusedLabels": true,
       "allowUnreachableCode": true,
-      "outDir": "modules"
+      "outDir": "modules/types"
     },
     "include": ["lib/*.ts"]
   }

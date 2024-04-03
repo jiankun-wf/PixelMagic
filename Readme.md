@@ -3,6 +3,8 @@
 示例页：https://jiankun-wf.github.io/pixelwind/
 
 ## 大小仅为 20kb 但是可以随意操纵 RGBA 类型的像素通道
+# 现已支持多线程处理，处理速度对比（参考）：
+ 
 
 # 简单使用
 

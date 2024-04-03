@@ -1,6 +1,5 @@
-const errorlog = (text) => {
-  throw Error(text);
-};
+import { Mat } from "./mat";
+import { errorlog } from "./log";
 class PixelWind {
   // client-only
   readAsElement(img) {
@@ -109,19 +108,15 @@ class PixelWind {
     const {
       size: { width: mWidth, height: mHeight }
     } = mat;
-    // const endX = Math.min(x + width, mWidth);
-    // const endY = Math.min(y + height, mHeight);
     const startX = Math.max(x, 0);
     const startY = Math.max(y, 0);
     const newMat = new Mat(
       new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
     newMat.recycle((pixel, row, col) => {
-
-      const x = Math.min(mWidth - 1, row + startX);
-      const y = Math.min(mHeight - 1, col + startY);
-
-      const [R, G, B, A] = mat.at(x, y);
+      const x2 = Math.min(mWidth - 1, row + startX);
+      const y2 = Math.min(mHeight - 1, col + startY);
+      const [R, G, B, A] = mat.at(x2, y2);
       newMat.update(row, col, R, G, B, A);
     });
     return newMat;
@@ -737,180 +732,8 @@ class PixelWind {
     return bestThreshold;
   }
 }
-class Mat {
-  // 最小分割宽高
-  static minPixelSplitWidth = 400;
-  static minPixelSplitHeight = 400;
-  static group(width, height) {
-    const minW = this.minPixelSplitWidth;
-    const minH = this.minPixelSplitHeight;
-    const m = window.navigator.hardwareConcurrency;
-    const totalArea = width * height;
-    if (m < 1 || minW <= 0 || minH <= 0 || totalArea <= 0) {
-      return null;
-    }
-    const minArea = minW * minH * m;
-    if (totalArea < minArea) {
-      return null;
-    }
-    const blocks = [];
-    const minDimension = Math.min(width, height);
-    const maxBlocks = Math.min(
-      m,
-      Math.floor(minDimension / Math.min(minW, minH))
-    );
-    const numRows = Math.ceil(Math.sqrt(maxBlocks));
-    const numCols = Math.ceil(maxBlocks / numRows);
-    const blockWidth = Math.floor(width / numCols);
-    const blockHeight = Math.floor(height / numRows);
-    for (let i = 0; i < numRows; i++) {
-      for (let j = 0; j < numCols; j++) {
-        const x1 = j * blockWidth;
-        const y1 = i * blockHeight;
-        const x2 = x1 + Math.max(minW, Math.min(width - j * blockWidth, blockWidth));
-        const y2 = y1 + Math.max(minH, Math.min(height - i * blockHeight, blockHeight));
-        blocks.push({ x1, y1, x2, y2 });
-      }
-    }
-    return blocks;
-  }
-  rows;
-  cols;
-  channels;
-  size;
-  data;
-  constructor(imageData) {
-    this.rows = imageData.height;
-    this.cols = imageData.width;
-    this.size = { width: imageData.width, height: imageData.height };
-    this.channels = 4;
-    this.data = imageData.data;
-  }
-  clone() {
-    const {
-      data,
-      size: { width, height }
-    } = this;
-    const uin = new Uint8ClampedArray(data);
-    const imageData = new ImageData(uin, width, height);
-    return new Mat(imageData);
-  }
-  delete() {
-    this.data = new Uint8ClampedArray(0);
-  }
-  update(row, col, ...args) {
-    const { data } = this;
-    const pixelAddress = this.getAddress(row, col);
-    for (let i = 0; i < 4; i++) {
-      if (args[i] !== void 0) {
-        data[pixelAddress[i]] = args[i];
-      }
-    }
-  }
-  getAddress(row, col) {
-    const { channels, cols } = this;
-    const R = cols * col * channels + row * channels;
-    return [R, R + 1, R + 2, R + 3];
-  }
-  // 多线程循环;
-  // parallelForRecycle(
-  //   callback: (pixel: Pixel, row: number, col: number) => void
-  // ) {
-  //   const maxChannels = navigator.hardwareConcurrency;
-  //   if (
-  //     maxChannels <= 1 ||
-  //     this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
-  //   ) {
-  //     return this.recycle(callback);
-  //   }
-  //   return new Promise((resolve) => {
-  //     const {
-  //       size: { width, height },
-  //     } = this;
-  //     const groups = Mat.group(width, height);
-  //     const works: Worker[] = [];
-  //     let completeCount = 0;
-  //     for (let i = 0; i < groups.length; i++) {
-  //       const { x1, y1, x2, y2 } = groups[i];
-  //       const worker = new Worker("./exec.worker.js");
-  //       worker.onmessage = (e: MessageEvent) => {
-  //         completeCount++;
-  //         if (completeCount === works.length) {
-  //           resolve("success");
-  //         }
-  //       };
-  //       works.push(worker);
-  //       worker.postMessage({
-  //         callback,
-  //         mat: this,
-  //         startX: x1,
-  //         startY: y1,
-  //         endX: x2,
-  //         endY: y2,
-  //       });
-  //     }
-  //   });
-  // }
-  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
-    for (let row = startX; row < endX; row++) {
-      for (let col = startY; col < endY; col++) {
-        callback(this.at(row, col), row, col);
-      }
-    }
-  }
-  at(row, col) {
-    const { data } = this;
-    const [R, G, B, A] = this.getAddress(row, col);
-    return [data[R], data[G], data[B], data[A]];
-  }
-  // clip 是否缩放，注意这个缩放不会影响本身mat图片数据，只做展示缩放
-  imgshow(canvas, clip = false, clipWidth = 0, clipHeight = 0) {
-    const canvasEl = canvas instanceof HTMLCanvasElement ? canvas : document.querySelector(canvas);
-    if (!canvasEl) {
-      errorlog("\u65E0\u6CD5\u627E\u5230canvas\u5F53\u524D\u5143\u7D20\uFF01");
-    }
-    const { data, size } = this;
-    const { width, height } = size;
-    const imageData = new ImageData(data, width, height);
-    const ctx = canvasEl.getContext("2d");
-    if (clip) {
-      canvasEl.width = clipWidth;
-      canvasEl.height = clipHeight;
-      window.createImageBitmap(imageData, {
-        resizeHeight: clipHeight,
-        resizeWidth: clipWidth
-      }).then((imageBitmap) => {
-        ctx.drawImage(imageBitmap, 0, 0);
-      });
-    } else {
-      canvasEl.width = width;
-      canvasEl.height = height;
-      ctx.putImageData(imageData, 0, 0, 0, 0, canvasEl.width, canvasEl.height);
-    }
-  }
-  toDataUrl(type, quality = 1) {
-    const canvas = document.createElement("canvas");
-    this.imgshow(canvas);
-    return canvas.toDataURL(type ?? "image/png", quality);
-  }
-  toBlob(type, quality = 1) {
-    return new Promise((resolve, reject) => {
-      const canvas = document.createElement("canvas");
-      this.imgshow(canvas);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob || !blob.size) {
-            return reject(new Error("\u8F6C\u6362\u5931\u8D25\uFF1A\u4E0D\u5B58\u5728\u7684blob\u6216blob\u5927\u5C0F\u4E3A\u7A7A"));
-          }
-          resolve(blob);
-        },
-        type ?? "image/png",
-        quality
-      );
-    });
-  }
-}
 const pw = new PixelWind();
 export {
+  Mat,
   pw
 };

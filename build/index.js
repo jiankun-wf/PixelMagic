@@ -7,35 +7,46 @@ const outdir = path.resolve(__dirname, '..', 'modules');
 
 esbuild.outdir = outdir;
 
+const basePath = path.resolve(__dirname, '..')
+
 const configs = [
     {
         format: 'esm',
-        outfile: path.resolve(__dirname, '..', 'modules/index.mjs'),
+        outdir: `${basePath}/modules/es`,
         entryPoints: [
-            path.resolve(__dirname, '..', 'lib/index.ts')
+            `${basePath}/lib/index.ts`,
+            `${basePath}/lib/exec.worker.ts`,
+            `${basePath}/lib/mat.ts`,
+            `${basePath}/lib/log.ts`,
         ],
+        bundle: false,
         write: true,
         minify: false,
     },
     {
         format: 'cjs',
-        outfile: path.resolve(__dirname, '..', 'modules/index.cjs'),
+        outdir: `${basePath}/modules/commonjs`,
         entryPoints: [
-            path.resolve(__dirname, '..', 'lib/index.ts')
+            `${basePath}/lib/index.ts`,
+            `${basePath}/lib/exec.worker.ts`,
+            `${basePath}/lib/mat.ts`,
+            `${basePath}/lib/log.ts`,
         ],
+        bundle: false,
         write: true,
-        minify: true,
+        minify: false,
     },
     {
         format: 'iife',
-        outfile: path.resolve(__dirname, '..', 'modules/index.js'),
+        outdir: `${basePath}/modules/iife`,
         entryPoints: [
-            path.resolve(__dirname, '..', 'lib/index.ts')
+            `${basePath}/lib/index.ts`,
+            `${basePath}/lib/exec.worker.ts`,
         ],
         bundle: true,
         write: true,
-        globalName: 'pw',
-        minify: true,
+        globalName: 'PixelWind',
+        minify: false,
     }
 ];
 

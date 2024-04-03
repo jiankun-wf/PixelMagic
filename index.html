@@ -118,9 +118,10 @@
     </div>
   </div>
 </body>
+<script type="text/javascript" src="./modules/iife/index.js"></script>
+<script>
 
-<script type="module">
-  import { pw } from "./modules/index.mjs";
+  const pw = window.PixelWind.pw;
 
   const app = new window.Vue({
     el: "#app",
@@ -260,19 +261,24 @@
           this.handleShowImg();
         }
       },
-      handleDropTransparent(mat = null) {
+      async handleDropTransparent(mat = null) {
         mat = mat || this.saveMat;
         if (!mat) return;
-        mat.recycle((pixel, row, col) => {
-          const A = pixel[3]
-          if (A === 0) {
-            mat.update(row, col, 255, 255, 255, 255);
-          }
-        });
+        const d = performance.now();
+        const nMat = await mat.parallelForRecycle();
+        const e = performance.now();
+        console.log(`image deal with Multi-threaded：${(e - d )}ms`);
+
+        const d2 = performance.now();
+        mat.recycle((_pixel, row, col) => {
+          mat.update(row, col, 128, 128, 128, 255);
+        })
+        const e2 = performance.now();
+        console.log(`image deal without Multi-threaded：${(e2 - d2)}ms`);
+
         if (!arguments.length) {
-          this.saveMat = mat.clone();
+          this.saveMat = nMat.clone();
           this.handleShowImg();
-          mat.delete();
         }
       },
       handleDropWhite(mat = null) {

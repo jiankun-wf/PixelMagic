@@ -3,22 +3,39 @@ const path = require('path')
 const chalk = require('chalk');
 
 const sizeUnits = [
-    'KB',
-    'MB',
-    'GB',
-    'TB',
-    'PB',
-    'EB',
-    'ZB',
-    'YB'
+  'KB',
+  'MB',
+  'GB',
+  'TB',
+  'PB',
+  'EB',
+  'ZB',
+  'YB'
 ]
 
 const getFileSize = (size, unit = 0) => {
-    const sizeInKB = size / 1024;
-    if (sizeInKB > 1024) {
-        return getFileSize(sizeInKB / 1024, ++unit)
+  const sizeInKB = size / 1024;
+  if (sizeInKB > 1024) {
+    return getFileSize(sizeInKB / 1024, ++unit)
+  }
+  return sizeInKB.toFixed(2) + sizeUnits[unit];
+}
+
+async function collectFilesInfo(fileInfoList, files, outdir) {
+  for (file of files) {
+    const filePath = path.resolve(outdir, file);
+
+    const fileInfo = await fs.statSync(filePath);
+
+    if (fileInfo.isFile()) {
+      fileInfoList.push({
+        name: `${outdir}/${file}`,
+        size: getFileSize(fileInfo.size)
+      })
+    } else if (fileInfo.isDirectory()) {
+      await collectFilesInfo(fileInfoList, await fs.readdirSync(filePath), `${outdir}/${file}`);
     }
-    return sizeInKB.toFixed(2) + sizeUnits[unit];
+  }
 }
 
 async function postOutputFiles(outdir, startBuildTimeStamp) {
@@ -28,27 +45,12 @@ async function postOutputFiles(outdir, startBuildTimeStamp) {
 
   const files = await fs.readdirSync(outdir);
 
-  for(file of files) {
-    const filePath = path.resolve(outdir, file);
-
-    const fileInfo = await fs.statSync(filePath);
-    
-    if(fileInfo.isFile()) {
-      fileInfoList.push({
-        name: file,
-        size: getFileSize(fileInfo.size)
-      })
-    }
- 
-  }
-
-    
-
+  await collectFilesInfo(fileInfoList, files, outdir);
 
   console.log(chalk.cyan('-----------------------------------------------------------'))
 
   fileInfoList.forEach(file => {
-      console.log(chalk.blueBright(`${file.name} - ${file.size}`));
+    console.log(chalk.blueBright(`${file.name} - ${file.size}`));
   })
 
   console.log(chalk.cyan('-----------------------------------------------------------'))
@@ -57,5 +59,5 @@ async function postOutputFiles(outdir, startBuildTimeStamp) {
 }
 
 module.exports = {
-  postOutputFiles, 
+  postOutputFiles,
 }
