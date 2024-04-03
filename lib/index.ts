@@ -285,31 +285,27 @@ class PixelWind {
   }
 
   // 图像的 浅色擦除/深色擦除      渐隐比例：0.50
-  fade(mat: Mat, mode: FadeMode, percent: number) {
+  async fade(mat: Mat, mode: FadeMode, percent: number) {
     const per = mode === "in" ? 1 - percent : percent;
 
     const C = per * 255;
-    const CR = C,
-      CG = C,
-      CB = C;
+    const CRGB = 3 * C;
 
     switch (mode) {
       case "in":
-        mat.recycle((pixel, row, col) => {
+        return await mat.parallelForRecycle((pixel, row, col, vmat, CRGB) => {
           const [R, G, B] = pixel;
-          if (R + G + B > CR + CG + CB) {
-            mat.update(row, col, 255, 255, 255);
+          if (R + G + B > CRGB) {
+            vmat.update(row, col, 255, 255, 255);
           }
-        });
-        break;
+        }, CRGB)
       case "out":
-        mat.recycle((pixel, row, col) => {
+        return await mat.parallelForRecycle((pixel, row, col, vmat, CRGB) => {
           const [R, G, B] = pixel;
-          if (R + G + B < CR + CG + CB) {
-            mat.update(row, col, 255, 255, 255);
+          if (R + G + B < CRGB) {
+            vmat.update(row, col, 255, 255, 255);
           }
-        });
-        break;
+        }, CRGB)
     }
   }
 
@@ -461,7 +457,7 @@ class PixelWind {
   }
 
   // 高斯滤波
-  gaussianBlur(mat: Mat, ksize: number, sigmaX: number = 0, sigmaY = sigmaX) {
+ async gaussianBlur(mat: Mat, ksize: number, sigmaX: number = 0, sigmaY = sigmaX) {
     if (ksize % 2 === 0) {
       errorlog("size需为奇整数！");
     }
@@ -478,7 +474,7 @@ class PixelWind {
 
     const half = Math.floor(ksize / 2);
 
-    mat.recycle((_pixel, row, col) => {
+    return await mat.parallelForRecycle((_pixel, row, col, vmat, ksize, half, gaussianKernel) => {
       // 应用高斯权重
       let NR = 0,
         NG = 0,
@@ -490,14 +486,14 @@ class PixelWind {
           let offsetY = col + ky - half;
 
           offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.cols - 1);
+          offsetX = Math.min(offsetX, vmat.cols - 1);
 
           offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.rows - 1);
+          offsetY = Math.min(offsetY, vmat.rows - 1);
 
           const rate = gaussianKernel[kx][ky];
 
-          const [R, G, B, A] = mat.at(offsetX, offsetY);
+          const [R, G, B, A] = vmat.at(offsetX, offsetY);
 
           NR += R * rate;
           NG += G * rate;
@@ -505,8 +501,7 @@ class PixelWind {
           NA += A * rate;
         }
       }
-
-      mat.update(
+      vmat.update(
         row,
         col,
         Math.round(NR),
@@ -514,7 +509,45 @@ class PixelWind {
         Math.round(NB),
         Math.round(NA)
       );
-    });
+    }, ksize, half, gaussianKernel);
+
+    // mat.recycle((_pixel, row, col) => {
+    //   // 应用高斯权重
+    //   let NR = 0,
+    //     NG = 0,
+    //     NB = 0,
+    //     NA = 0;
+    //   for (let kx = 0; kx < ksize; kx++) {
+    //     for (let ky = 0; ky < ksize; ky++) {
+    //       let offsetX = row + kx - half;
+    //       let offsetY = col + ky - half;
+
+    //       offsetX = Math.max(offsetX, 0);
+    //       offsetX = Math.min(offsetX, mat.cols - 1);
+
+    //       offsetY = Math.max(offsetY, 0);
+    //       offsetY = Math.min(offsetY, mat.rows - 1);
+
+    //       const rate = gaussianKernel[kx][ky];
+
+    //       const [R, G, B, A] = mat.at(offsetX, offsetY);
+
+    //       NR += R * rate;
+    //       NG += G * rate;
+    //       NB += B * rate;
+    //       NA += A * rate;
+    //     }
+    //   }
+
+    //   mat.update(
+    //     row,
+    //     col,
+    //     Math.round(NR),
+    //     Math.round(NG),
+    //     Math.round(NB),
+    //     Math.round(NA)
+    //   );
+    // });
   }
   // 均值滤波
   // ksize * ksize 矩阵取平均值

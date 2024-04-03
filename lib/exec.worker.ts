@@ -7,18 +7,12 @@ self.addEventListener("message", (e: MessageEvent) => {
 
   const mat = new Mat(imageData);
 
-  const cw = endX - startX + 1;
-  const ch = endY - startY + 1;
-  const nMat = new Mat(
-    new ImageData(new Uint8ClampedArray(cw * ch * 4), cw, ch)
-  );
-
-  const callbackFunction = new Function('pixel', 'row', 'col', '...args', `return ${callbackStr}`);
+  const callbackFunction = new Function('pixel', 'row', 'col', 'vmat', '...args', `return ${callbackStr}`);
   const callback = callbackFunction();
 
   mat.recycle(
     (pixel, row, col) => {
-      callback(pixel, row, col, nMat, row - startX, col - startY, ...callbackArguments);
+      callback(pixel, row, col, mat, ...callbackArguments);
     },
     startX,
     endX + 1,
@@ -26,8 +20,10 @@ self.addEventListener("message", (e: MessageEvent) => {
     endY + 1
   );
 
+  const splitMatData = mat.data.slice(mat.getAddress(startX, startY)[0], mat.getAddress(endX, endY)[3] + 1);
+
   self.postMessage({
-    data: nMat.data,
+    data: splitMatData,
     index,
   });
 });

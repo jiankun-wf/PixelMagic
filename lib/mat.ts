@@ -97,7 +97,7 @@ export class Mat {
 
   // 多线程处理
   parallelForRecycle(
-    callback: (pixel: Pixel, row: number, col: number) => void,
+    callback: (pixel: Pixel, row: number, col: number, vmat: Mat, ...args: any[]) => void,
     ...args: any[]
   ) {
     const maxChannels = navigator.hardwareConcurrency;
@@ -107,7 +107,7 @@ export class Mat {
     ) {
       // 低于 minPixelSplitHeight * minPixelSplitWidth 时，直接使用单线程处理
       // 当线程数小于等于1时，直接使用单线程处理
-      return this.recycle(callback);
+      return this.recycle(callback as any);
     }
     return new Promise((resolve) => {
       const {

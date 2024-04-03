@@ -25,22 +25,22 @@
         <el-form-item label="深色擦退">
           <div class="switch-slider-content">
             <el-checkbox v-model="imageConfig.fadeWay" true-label="out" false-label="in"
-              @change="handleFadeImage"></el-checkbox>
+              @change="handleFadeImage()"></el-checkbox>
             <div class="fill">
               <el-slider v-model="imageConfig.fadeoutPercent" :max="100" :min="0" size="small"
                 :disabled="imageConfig.fadeWay === 'in'" :format-tooltip="formatTooltip"
-                @input="handleFadeImage"></el-slider>
+                @change="handleFadeImage()"></el-slider>
             </div>
           </div>
         </el-form-item>
         <el-form-item label="浅色擦退">
           <div class="switch-slider-content">
             <el-checkbox v-model="imageConfig.fadeWay" true-label="in" false-label="out"
-              @change="handleFadeImage"></el-checkbox>
+              @change="handleFadeImage()"></el-checkbox>
             <div class="fill">
               <el-slider v-model="imageConfig.fadeinPercent" :max="100" :min="0"
                 :disabled="imageConfig.fadeWay === 'out'" :format-tooltip="formatTooltip"
-                @input="handleFadeImage"></el-slider>
+                @change="handleFadeImage()"></el-slider>
             </div>
           </div>
         </el-form-item>
@@ -178,48 +178,35 @@
           target.value = "";
         }
       },
-      handleFadeImage() {
+      async handleFadeImage(mat = null) {
+        mat = mat || this.saveMat;
+        if(!mat) return;
         if (!this.originalMat) return;
-        const mat = this.originalMat.clone();
-
+        
         const {
-          isNativeColor,
           fadeWay,
           fadeinPercent,
           fadeoutPercent,
-          transparent,
-          nativeColorRollBack,
-        } = this.imageConfig;
+s        } = this.imageConfig;
 
         const percentage =
           (fadeWay === "in" ? fadeinPercent : fadeoutPercent) / 100;
 
-        pw.fade(mat, fadeWay, percentage);
+        const nMat = await pw.fade(mat, fadeWay, percentage);
 
-        if (isNativeColor) {
-          this.handleNativeColor(mat);
-          if (nativeColorRollBack) {
-            this.handleNativeColorRollBack(mat);
-          }
+        if (!arguments.length) {
+          this.saveMat = nMat.clone();
+          nMat.delete();
+          this.handleShowImg();
         }
-
-        if (transparent) {
-          this.handleTransparent(mat);
-        }
-
-        this.saveMat = mat.clone();
-
-        this.handleShowImg();
-
-        mat.delete();
       },
       handleNativeColor(mat = null) {
         const { isNativeColor, nativeColor } = this.imageConfig;
-        if (!isNativeColor) {
-          return this.handleFadeImage();
-        }
         mat = mat || this.saveMat;
         if (!mat) return;
+        if (!isNativeColor) {
+          return this.handleNativeColorRollBack();
+        }
         pw.native(mat, nativeColor);
 
         if (!arguments.length) {
@@ -229,7 +216,6 @@
         }
       },
       handleNativeColorRollBack(mat = null) {
-        debugger;
         mat = mat || this.saveMat;
         if (!mat) return;
         pw.nativeRollback(mat);
@@ -265,8 +251,8 @@
         mat = mat || this.saveMat;
         if (!mat) return;
         const d = performance.now();
-        const nMat = await mat.parallelForRecycle((pixel, row, col, nMat, nRow, nCol) => {
-            nMat.update(nRow, nCol, 0, 0, 0, 100); 
+        const nMat = await mat.parallelForRecycle((pixel, row, col, vmat) => {
+            vmat.update(row, col, 0, 0, 0, 100); 
         });
         const e = performance.now();
         console.log(`image deal with Multi-threaded：${(e - d )}ms`);
@@ -409,15 +395,15 @@
           this.handleShowImg();
         } 
       },
-      handleGaussianBlur(mat = null) {
+      async handleGaussianBlur(mat = null) {
         mat = mat || this.saveMat;
         if (!mat) return;
-        console.time('gaussianBlur')
-        pw.gaussianBlur(mat, 3, 10, 10);
-        console.timeEnd('gaussianBlur')
+        console.time('gaussianBlur multi-threaded')
+        const nMat = await pw.gaussianBlur(mat, 5, 10, 10);
+        console.timeEnd('gaussianBlur multi-threaded')
         if (!arguments.length) {
-          this.saveMat = mat.clone();
-          mat.delete();
+          this.saveMat = nMat.clone();
+          nMat.delete();
           this.handleShowImg();
         }
       },
