@@ -4,7 +4,8 @@
 
 ## 大小仅为 20kb 但是可以随意操纵 RGBA 类型的像素通道
 # 现已支持多线程处理，处理速度对比（参考）：
- 
+ ![image](https://github.com/jiankun-wf/pixelwind/assets/22322274/46bf3e6d-8e2c-4280-8d5b-a19f5d3e40e8)
+ ![分组切片算法](https://github.com/jiankun-wf/pixelwind/assets/22322274/42f22cce-346b-4fa9-b9c7-095cad010bae)
 
 # 简单使用
 
