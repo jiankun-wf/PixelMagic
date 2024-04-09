@@ -103,7 +103,7 @@ var PixelWind = (() => {
     }
     // 多线程处理
     parallelForRecycle(callback, ...args) {
-      const maxChannels = navigator.hardwareConcurrency;
+      const maxChannels = window.navigator.hardwareConcurrency;
       if (maxChannels <= 1 || this.rows * this.cols <= _Mat.minPixelSplitWidth * _Mat.minPixelSplitHeight) {
         return this.recycle(callback);
       }
@@ -116,7 +116,7 @@ var PixelWind = (() => {
         let completeCount = 0;
         for (let i = 0; i < groups.length; i++) {
           const { x1, y1, x2, y2 } = groups[i];
-          const worker = new Worker("/modules/iife/exec.worker.js");
+          const worker = new Worker("./modules/iife/exec.worker.js");
           worker.onmessage = (e) => {
             const { data, index } = e.data;
             groups[i].data = data;

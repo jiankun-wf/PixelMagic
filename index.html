@@ -112,7 +112,7 @@
           <i title="重置图片" v-if="originalMat" class="el-icon reset-icon el-icon-refresh-right"
             @click="handleResetImage"></i>
 
-          <img ref="resultImage" draggable="false" @mousedown.prevent @drag.prevent @ style="display: none" />
+          <canvas id="output" @mousedown.prevent @contextmenu.prevent />
         </div>
       </div>
     </div>
@@ -143,6 +143,9 @@
       };
     },
     methods: {
+      getOutput() {
+        return document.getElementById('output')
+      },
       handleUpload() {
         this.$refs.uploadRef.click();
       },
@@ -162,9 +165,10 @@
         mat = mat || this.saveMat;
         const { width, height } = mat.size;
         const { width: rw, height: rh } = this.calcResize(width, height);
-        this.$refs.resultImage.width = rw;
-        this.$refs.resultImage.height = rh;
-        this.$refs.resultImage.src = mat.toDataUrl("image/png");
+        const canvas = this.getOutput();
+        mat.imgshow(canvas, true, rw, rh);
+        // canvas.getContext('2d')
+        // this.$refs.resultImage.src = mat.toDataUrl("image/png");
       },
       async handleResolveFile(e) {
         const { target } = e;

@@ -97,10 +97,16 @@ export class Mat {
 
   // 多线程处理
   parallelForRecycle(
-    callback: (pixel: Pixel, row: number, col: number, vmat: Mat, ...args: any[]) => void,
+    callback: (
+      pixel: Pixel,
+      row: number,
+      col: number,
+      vmat: Mat,
+      ...args: any[]
+    ) => void,
     ...args: any[]
   ) {
-    const maxChannels = navigator.hardwareConcurrency;
+    const maxChannels = window.navigator.hardwareConcurrency;
     if (
       maxChannels <= 1 ||
       this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
@@ -116,12 +122,13 @@ export class Mat {
       const groups: ImageSplitChunk[] = Mat.group(width, height);
 
       const workers: Worker[] = [];
+
       let completeCount = 0;
 
       for (let i = 0; i < groups.length; i++) {
         const { x1, y1, x2, y2 } = groups[i];
 
-        const worker = new Worker("/modules/iife/exec.worker.js");
+        const worker = new Worker("./modules/iife/exec.worker.js");
 
         worker.onmessage = (e: MessageEvent) => {
           const { data, index } = e.data;
