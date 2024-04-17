@@ -129,6 +129,11 @@
       return {
         originalMat: null,
         saveMat: null,
+        downloadTypes: [
+           'png',
+           'jpeg',
+           'webp'
+        ],
 
         imageConfig: {
           fadeWay: "in",
@@ -167,8 +172,6 @@
         const { width: rw, height: rh } = this.calcResize(width, height);
         const canvas = this.getOutput();
         mat.imgshow(canvas, true, rw, rh);
-        // canvas.getContext('2d')
-        // this.$refs.resultImage.src = mat.toDataUrl("image/png");
       },
       async handleResolveFile(e) {
         const { target } = e;
@@ -178,7 +181,6 @@
           this.originalMat = mat.clone();
           this.saveMat = mat.clone();
           this.handleShowImg();
-          this.$refs.resultImage.style.display = "block";
           target.value = "";
         }
       },
