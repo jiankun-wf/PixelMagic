@@ -1,5 +1,6 @@
-import type { ImageSplitChunk, Pixel } from "./type";
+import type { CallBack, ImageSplitChunk, Pixel } from "./type";
 import { errorlog } from "./log";
+import { PixelWorker } from "./pixelWorker";
 
 export class Mat {
   // 最小分割宽高
@@ -97,86 +98,131 @@ export class Mat {
 
   // 多线程处理
   parallelForRecycle(
-    callback: (
-      pixel: Pixel,
-      row: number,
-      col: number,
-      vmat: Mat,
-      ...args: any[]
-    ) => void,
-    ...args: any[]
+    callback: CallBack,
+    args: Array<{ value: any; argname: string; type?: "Mat" }>
   ) {
     const maxChannels = window.navigator.hardwareConcurrency;
-    if (
-      maxChannels <= 1 ||
-      this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight
-    ) {
-      // 低于 minPixelSplitHeight * minPixelSplitWidth 时，直接使用单线程处理
-      // 当线程数小于等于1时，直接使用单线程处理
+
+    const { rows, cols } = this;
+    const { minPixelSplitHeight, minPixelSplitWidth } = Mat;
+
+    // 不支持webworke时，单线程处理
+    if (!window.Worker) {
       return this.recycle(callback as any);
     }
+    // 当线程数小于等于1时，直接使用单线程处理
+
+    if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
+      return this.recycle(callback as any);
+    }
+
+    if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
+      // 低于 minPixelSplitHeight * minPixelSplitWidth 时，直接使用单线程处理
+
+      return this.recycle(callback as any);
+    }
+
     return new Promise((resolve) => {
       const {
         size: { width, height },
       } = this;
       const groups: ImageSplitChunk[] = Mat.group(width, height);
 
-      const workers: Worker[] = [];
+      const workers: PixelWorker[] = [];
 
       let completeCount = 0;
 
       for (let i = 0; i < groups.length; i++) {
         const { x1, y1, x2, y2 } = groups[i];
 
-        const worker = new Worker("./modules/iife/exec.worker.js");
+        const worker = new PixelWorker("./modules/iife/exec.worker.js");
 
-        worker.onmessage = (e: MessageEvent) => {
-          const { data, index } = e.data;
-          groups[i].data = data;
-          completeCount++;
-          worker.terminate();
-          if (completeCount === workers.length) {
-            let total = 0;
-            const resultArr = new Uint8ClampedArray(width * height * 4);
-            for (let i = 0; i < groups.length; i++) {
-              resultArr.set(groups[i].data, total);
-              total += groups[i].data.length;
-            }
-            const newMat = new Mat(new ImageData(resultArr, width, height));
-            resolve(newMat);
-            workers.splice(0, workers.length);
-          }
-        };
         workers.push(worker);
+        // const worker = new Worker("./modules/iife/exec.worker.js");
 
-        worker.postMessage({
-          startX: x1,
-          startY: y1,
-          endX: x2,
-          endY: y2,
-          data: this.data,
-          width,
-          height,
-          index: i,
-          callbackStr: callback.toString(),
-          callbackArguments: args,
-        });
+        worker
+          .execCode(
+            {
+              startX: x1,
+              startY: y1,
+              endX: x2,
+              endY: y2,
+              data: this.data,
+              width,
+              height,
+              index: i,
+              callbackStr: callback.toString(),
+            },
+            args
+          )
+          .then((res) => {
+            const { data } = res;
+            groups[i].data = data;
+            completeCount++;
+            if (completeCount === workers.length) {
+              let total = 0;
+              const resultArr = new Uint8ClampedArray(width * height * 4);
+              for (let i = 0; i < groups.length; i++) {
+                resultArr.set(groups[i].data, total);
+                total += groups[i].data.length;
+              }
+              const newMat = new Mat(new ImageData(resultArr, width, height));
+              resolve(newMat);
+              workers.splice(0, workers.length);
+            }
+            worker.end();
+          });
+
+        // worker.onmessage = (e: MessageEvent) => {
+        //   const { data, index } = e.data;
+        //   groups[i].data = data;
+        //   completeCount++;
+        //   worker.terminate();
+        //   if (completeCount === workers.length) {
+        //     let total = 0;
+        //     const resultArr = new Uint8ClampedArray(width * height * 4);
+        //     for (let i = 0; i < groups.length; i++) {
+        //       resultArr.set(groups[i].data, total);
+        //       total += groups[i].data.length;
+        //     }
+        //     const newMat = new Mat(new ImageData(resultArr, width, height));
+        //     resolve(newMat);
+        //     workers.splice(0, workers.length);
+        //   }
+        // };
+
+        // worker.execCode(callback, args);
+
+        // worker.postMessage({
+        //   startX: x1,
+        //   startY: y1,
+        //   endX: x2,
+        //   endY: y2,
+        //   data: this.data,
+        //   width,
+        //   height,
+        //   index: i,
+        //   callbackStr: callback.toString(),
+        //   callbackArguments: args,
+        // });
       }
     });
   }
 
   recycle(
-    callback: (pixel: Pixel, row: number, col: number) => void | "break",
+    callback: CallBack,
     startX = 0,
     endX = this.cols,
     startY = 0,
-    endY = this.rows
+    endY = this.rows,
+    arg: any = null
   ) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
-        callback(this.at(row, col) as Pixel, row, col);
+        callback.call(arg, this.at(row, col) as Pixel, row, col, this);
       }
     }
+    return this;
   }
 
   at(row: number, col: number) {

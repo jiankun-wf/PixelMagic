@@ -1,4 +1,5 @@
 import { errorlog } from "./log";
+import { PixelWorker } from "./pixelWorker";
 class Mat {
   // 最小分割宽高
   static minPixelSplitWidth = 400;
@@ -71,9 +72,17 @@ class Mat {
     return [R, R + 1, R + 2, R + 3];
   }
   // 多线程处理
-  parallelForRecycle(callback, ...args) {
+  parallelForRecycle(callback, args) {
     const maxChannels = window.navigator.hardwareConcurrency;
-    if (maxChannels <= 1 || this.rows * this.cols <= Mat.minPixelSplitWidth * Mat.minPixelSplitHeight) {
+    const { rows, cols } = this;
+    const { minPixelSplitHeight, minPixelSplitWidth } = Mat;
+    if (!window.Worker) {
+      return this.recycle(callback);
+    }
+    if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
+      return this.recycle(callback);
+    }
+    if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
       return this.recycle(callback);
     }
     return new Promise((resolve) => {
@@ -85,12 +94,25 @@ class Mat {
       let completeCount = 0;
       for (let i = 0; i < groups.length; i++) {
         const { x1, y1, x2, y2 } = groups[i];
-        const worker = new Worker("./modules/iife/exec.worker.js");
-        worker.onmessage = (e) => {
-          const { data, index } = e.data;
+        const worker = new PixelWorker("./modules/iife/exec.worker.js");
+        workers.push(worker);
+        worker.execCode(
+          {
+            startX: x1,
+            startY: y1,
+            endX: x2,
+            endY: y2,
+            data: this.data,
+            width,
+            height,
+            index: i,
+            callbackStr: callback.toString()
+          },
+          args
+        ).then((res) => {
+          const { data } = res;
           groups[i].data = data;
           completeCount++;
-          worker.terminate();
           if (completeCount === workers.length) {
             let total = 0;
             const resultArr = new Uint8ClampedArray(width * height * 4);
@@ -102,29 +124,18 @@ class Mat {
             resolve(newMat);
             workers.splice(0, workers.length);
           }
-        };
-        workers.push(worker);
-        worker.postMessage({
-          startX: x1,
-          startY: y1,
-          endX: x2,
-          endY: y2,
-          data: this.data,
-          width,
-          height,
-          index: i,
-          callbackStr: callback.toString(),
-          callbackArguments: args
+          worker.end();
         });
       }
     });
   }
-  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
+  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows, arg = null) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
-        callback(this.at(row, col), row, col);
+        callback.call(arg, this.at(row, col), row, col, this);
       }
     }
+    return this;
   }
   at(row, col) {
     const { data } = this;

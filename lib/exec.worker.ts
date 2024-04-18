@@ -1,50 +1,82 @@
 import { Mat } from "./mat";
 
 self.addEventListener("message", (e: MessageEvent) => {
-  const {
-    startX,
-    startY,
-    endX,
-    endY,
-    data,
-    width,
-    height,
-    index,
-    callbackStr,
-    callbackArguments,
-  } = e.data;
+  const argsContext = {
+    self: self,
+  };
 
-  const imageData = new ImageData(data, width, height);
+  const { __evt_name, value } = e.data;
 
-  const mat = new Mat(imageData);
+  switch (__evt_name) {
+    // 为函数的执行指定args与作用域
 
-  const callbackFunction = new Function(
-    "pixel",
-    "row",
-    "col",
-    "vmat",
-    "...args",
-    `return ${callbackStr}`
-  );
-  const callback = callbackFunction();
+    case "addArgs":
+      if (value && value.length) {
+        value.forEach(({ type, value: itemValue, argname }) => {
+          if (type === "function") {
+            const func = new Function(`return ${itemValue}`);
+            const funcContext = func();
+            argsContext[argname] = funcContext.bind(argsContext);
+          } else if (type === "Mat") {
+            // 为mat时，为Uint8ClampedArray数据
+            const { data, width, height } = itemValue;
+            argsContext[argname] = new Mat(new ImageData(data, width, height));
+          } else {
+            argsContext[argname] = itemValue;
+          }
+        });
+      }
+      return;
+    case "execCode":
+      const {
+        startX,
+        startY,
+        endX,
+        endY,
+        data,
+        width,
+        height,
+        index,
+        callbackStr,
+      } = value;
+    
+      const callbackFunction = new Function(
+        "pixel",
+        "row",
+        "col",
+        "vmat",
+        `return ${callbackStr}`
+      );
 
-  mat.recycle(
-    (pixel, row, col) => {
-      callback(pixel, row, col, mat, ...callbackArguments);
-    },
-    startX,
-    endX + 1,
-    startY,
-    endY + 1
-  );
+      const imageData = new ImageData(data, width, height);
 
-  const splitMatData = mat.data.slice(
-    mat.getAddress(startX, startY)[0],
-    mat.getAddress(endX, endY)[3] + 1
-  );
+      const mat = new Mat(imageData);
 
-  self.postMessage({
-    data: splitMatData,
-    index,
-  });
+      const callback = callbackFunction.bind(argsContext);
+
+      mat.recycle(
+        (pixel, row, col) => {
+          callback(pixel, row, col, mat);
+        },
+        startX,
+        endX + 1,
+        startY,
+        endY + 1
+      );
+
+      const splitMatData = mat.data.slice(
+        mat.getAddress(startX, startY)[0],
+        mat.getAddress(endX, endY)[3] + 1
+      );
+
+      self.postMessage({
+        __evt_name: "execCode",
+        value: {
+          data: splitMatData,
+          index,
+        },
+      });
+
+      return;
+  }
 });

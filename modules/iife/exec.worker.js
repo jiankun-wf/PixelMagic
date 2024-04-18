@@ -4,6 +4,57 @@ var PixelWind = (() => {
     throw Error(text);
   };
 
+  // lib/pixelWorker.ts
+  var PixelWorker = class {
+    argList;
+    worker;
+    constructor(url) {
+      this.worker = new Worker(url);
+    }
+    send(key, data) {
+      this.worker.postMessage({ __evt_name: key, value: data });
+    }
+    message(key, data) {
+      return new Promise((resolve) => {
+        this.worker.onmessage = (e) => {
+          const { data: backData } = e;
+          const { __evt_name, value } = backData;
+          if (__evt_name === key) {
+            resolve(value);
+          }
+        };
+        this.send(key, data);
+      });
+    }
+    async execCode(value, args) {
+      this.addArgs(args);
+      const data = await this.message("execCode", value);
+      return data;
+    }
+    // 将arg逐个添加到argList中
+    // { argName: string; value: any; type: 'function' | 'normal' }[]
+    addArgs(args) {
+      this.argList = args;
+      this.send(
+        "addArgs",
+        this.argList.map((i) => {
+          const { value, argname, type } = i;
+          if (typeof value === "function") {
+            return { type: "function", value: value.toString(), argname };
+          } else if (type) {
+            return { type: "Mat", value, argname };
+          } else {
+            return { type: "normal", value, argname };
+          }
+        })
+      );
+    }
+    end() {
+      this.worker.terminate();
+      this.worker = null;
+    }
+  };
+
   // lib/mat.ts
   var Mat = class _Mat {
     // 最小分割宽高
@@ -77,9 +128,17 @@ var PixelWind = (() => {
       return [R, R + 1, R + 2, R + 3];
     }
     // 多线程处理
-    parallelForRecycle(callback, ...args) {
+    parallelForRecycle(callback, args) {
       const maxChannels = window.navigator.hardwareConcurrency;
-      if (maxChannels <= 1 || this.rows * this.cols <= _Mat.minPixelSplitWidth * _Mat.minPixelSplitHeight) {
+      const { rows, cols } = this;
+      const { minPixelSplitHeight, minPixelSplitWidth } = _Mat;
+      if (!window.Worker) {
+        return this.recycle(callback);
+      }
+      if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
+        return this.recycle(callback);
+      }
+      if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
         return this.recycle(callback);
       }
       return new Promise((resolve) => {
@@ -91,12 +150,25 @@ var PixelWind = (() => {
         let completeCount = 0;
         for (let i = 0; i < groups.length; i++) {
           const { x1, y1, x2, y2 } = groups[i];
-          const worker = new Worker("./modules/iife/exec.worker.js");
-          worker.onmessage = (e) => {
-            const { data, index } = e.data;
+          const worker = new PixelWorker("./modules/iife/exec.worker.js");
+          workers.push(worker);
+          worker.execCode(
+            {
+              startX: x1,
+              startY: y1,
+              endX: x2,
+              endY: y2,
+              data: this.data,
+              width,
+              height,
+              index: i,
+              callbackStr: callback.toString()
+            },
+            args
+          ).then((res) => {
+            const { data } = res;
             groups[i].data = data;
             completeCount++;
-            worker.terminate();
             if (completeCount === workers.length) {
               let total = 0;
               const resultArr = new Uint8ClampedArray(width * height * 4);
@@ -108,29 +180,18 @@ var PixelWind = (() => {
               resolve(newMat);
               workers.splice(0, workers.length);
             }
-          };
-          workers.push(worker);
-          worker.postMessage({
-            startX: x1,
-            startY: y1,
-            endX: x2,
-            endY: y2,
-            data: this.data,
-            width,
-            height,
-            index: i,
-            callbackStr: callback.toString(),
-            callbackArguments: args
+            worker.end();
           });
         }
       });
     }
-    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
+    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows, arg = null) {
       for (let row = startX; row < endX; row++) {
         for (let col = startY; col < endY; col++) {
-          callback(this.at(row, col), row, col);
+          callback.call(arg, this.at(row, col), row, col, this);
         }
       }
+      return this;
     }
     at(row, col) {
       const { data } = this;
@@ -187,24 +248,71 @@ var PixelWind = (() => {
 
   // lib/exec.worker.ts
   self.addEventListener("message", (e) => {
-    const { startX, startY, endX, endY, data, width, height, index, callbackStr, callbackArguments } = e.data;
-    const imageData = new ImageData(data, width, height);
-    const mat = new Mat(imageData);
-    const callbackFunction = new Function("pixel", "row", "col", "vmat", "...args", `return ${callbackStr}`);
-    const callback = callbackFunction();
-    mat.recycle(
-      (pixel, row, col) => {
-        callback(pixel, row, col, mat, ...callbackArguments);
-      },
-      startX,
-      endX + 1,
-      startY,
-      endY + 1
-    );
-    const splitMatData = mat.data.slice(mat.getAddress(startX, startY)[0], mat.getAddress(endX, endY)[3] + 1);
-    self.postMessage({
-      data: splitMatData,
-      index
-    });
+    const argsContext = {
+      self
+    };
+    const { __evt_name, value } = e.data;
+    switch (__evt_name) {
+      case "addArgs":
+        if (value && value.length) {
+          value.forEach(({ type, value: itemValue, argname }) => {
+            if (type === "function") {
+              const func = new Function(`return ${itemValue}`);
+              const funcContext = func();
+              argsContext[argname] = funcContext.bind(argsContext);
+            } else if (type === "Mat") {
+              const { data: data2, width: width2, height: height2 } = itemValue;
+              argsContext[argname] = new Mat(new ImageData(data2, width2, height2));
+            } else {
+              argsContext[argname] = itemValue;
+            }
+          });
+        }
+        return;
+      case "execCode":
+        const {
+          startX,
+          startY,
+          endX,
+          endY,
+          data,
+          width,
+          height,
+          index,
+          callbackStr
+        } = value;
+        const callbackFunction = new Function(
+          "pixel",
+          "row",
+          "col",
+          "vmat",
+          `return ${callbackStr}`
+        );
+        const imageData = new ImageData(data, width, height);
+        const mat = new Mat(imageData);
+        const callback = callbackFunction.bind(argsContext);
+        console.log(JSON.stringify(argsContext));
+        mat.recycle(
+          (pixel, row, col) => {
+            callback(pixel, row, col, mat);
+          },
+          startX,
+          endX + 1,
+          startY,
+          endY + 1
+        );
+        const splitMatData = mat.data.slice(
+          mat.getAddress(startX, startY)[0],
+          mat.getAddress(endX, endY)[3] + 1
+        );
+        self.postMessage({
+          __evt_name: "execCode",
+          value: {
+            data: splitMatData,
+            index
+          }
+        });
+        return;
+    }
   });
 })();

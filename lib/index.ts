@@ -293,19 +293,27 @@ class PixelWind {
 
     switch (mode) {
       case "in":
-        return await mat.parallelForRecycle((pixel, row, col, vmat, CRGB) => {
-          const [R, G, B] = pixel;
-          if (R + G + B > CRGB) {
-            vmat.update(row, col, 255, 255, 255);
-          }
-        }, CRGB)
+        return await mat.parallelForRecycle(
+          function (pixel, row, col, vmat) {
+            const { CRGB } = this;
+            const [R, G, B] = pixel;
+            if (R + G + B > CRGB) {
+              vmat.update(row, col, 255, 255, 255);
+            }
+          },
+          [{ argname: "CRGB", value: CRGB }]
+        );
       case "out":
-        return await mat.parallelForRecycle((pixel, row, col, vmat, CRGB) => {
-          const [R, G, B] = pixel;
-          if (R + G + B < CRGB) {
-            vmat.update(row, col, 255, 255, 255);
-          }
-        }, CRGB)
+        return await mat.parallelForRecycle(
+          function (pixel, row, col, vmat) {
+            const { CRGB } = this;
+            const [R, G, B] = pixel;
+            if (R + G + B < CRGB) {
+              vmat.update(row, col, 255, 255, 255);
+            }
+          },
+          [{ argname: "CRGB", value: CRGB }]
+        );
     }
   }
 
@@ -457,7 +465,12 @@ class PixelWind {
   }
 
   // 高斯滤波
- async gaussianBlur(mat: Mat, ksize: number, sigmaX: number = 0, sigmaY = sigmaX) {
+  async gaussianBlur(
+    mat: Mat,
+    ksize: number,
+    sigmaX: number = 0,
+    sigmaY = sigmaX
+  ) {
     if (ksize % 2 === 0) {
       errorlog("size需为奇整数！");
     }
@@ -474,80 +487,50 @@ class PixelWind {
 
     const half = Math.floor(ksize / 2);
 
-    return await mat.parallelForRecycle((_pixel, row, col, vmat, ksize, half, gaussianKernel) => {
-      // 应用高斯权重
-      let NR = 0,
-        NG = 0,
-        NB = 0,
-        NA = 0;
-      for (let kx = 0; kx < ksize; kx++) {
-        for (let ky = 0; ky < ksize; ky++) {
-          let offsetX = row + kx - half;
-          let offsetY = col + ky - half;
+    return await mat.parallelForRecycle(
+      function (_pixel, row, col, vmat) {
+        const { gaussianKernel, half, ksize } = this;
+        // 应用高斯权重
+        let NR = 0,
+          NG = 0,
+          NB = 0,
+          NA = 0;
+        for (let kx = 0; kx < ksize; kx++) {
+          for (let ky = 0; ky < ksize; ky++) {
+            let offsetX = row + kx - half;
+            let offsetY = col + ky - half;
 
-          offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, vmat.cols - 1);
+            offsetX = Math.max(offsetX, 0);
+            offsetX = Math.min(offsetX, vmat.cols - 1);
 
-          offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, vmat.rows - 1);
+            offsetY = Math.max(offsetY, 0);
+            offsetY = Math.min(offsetY, vmat.rows - 1);
 
-          const rate = gaussianKernel[kx][ky];
+            const rate = gaussianKernel[kx][ky];
 
-          const [R, G, B, A] = vmat.at(offsetX, offsetY);
+            const [R, G, B, A] = vmat.at(offsetX, offsetY);
 
-          NR += R * rate;
-          NG += G * rate;
-          NB += B * rate;
-          NA += A * rate;
+            NR += R * rate;
+            NG += G * rate;
+            NB += B * rate;
+            NA += A * rate;
+          }
         }
-      }
-      vmat.update(
-        row,
-        col,
-        Math.round(NR),
-        Math.round(NG),
-        Math.round(NB),
-        Math.round(NA)
-      );
-    }, ksize, half, gaussianKernel);
-
-    // mat.recycle((_pixel, row, col) => {
-    //   // 应用高斯权重
-    //   let NR = 0,
-    //     NG = 0,
-    //     NB = 0,
-    //     NA = 0;
-    //   for (let kx = 0; kx < ksize; kx++) {
-    //     for (let ky = 0; ky < ksize; ky++) {
-    //       let offsetX = row + kx - half;
-    //       let offsetY = col + ky - half;
-
-    //       offsetX = Math.max(offsetX, 0);
-    //       offsetX = Math.min(offsetX, mat.cols - 1);
-
-    //       offsetY = Math.max(offsetY, 0);
-    //       offsetY = Math.min(offsetY, mat.rows - 1);
-
-    //       const rate = gaussianKernel[kx][ky];
-
-    //       const [R, G, B, A] = mat.at(offsetX, offsetY);
-
-    //       NR += R * rate;
-    //       NG += G * rate;
-    //       NB += B * rate;
-    //       NA += A * rate;
-    //     }
-    //   }
-
-    //   mat.update(
-    //     row,
-    //     col,
-    //     Math.round(NR),
-    //     Math.round(NG),
-    //     Math.round(NB),
-    //     Math.round(NA)
-    //   );
-    // });
+        vmat.update(
+          row,
+          col,
+          Math.round(NR),
+          Math.round(NG),
+          Math.round(NB),
+          Math.round(NA)
+        );
+      },
+      [
+        { argname: "ksize", value: ksize },
+        { argname: "half", value: half },
+        { argname: "gaussianKernel", value: gaussianKernel },
+      ]
+    );
   }
   // 均值滤波
   // ksize * ksize 矩阵取平均值

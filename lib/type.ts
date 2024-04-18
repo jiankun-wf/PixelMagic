@@ -1,3 +1,5 @@
+import type { Mat } from "./mat";
+
 export type R = number;
 export type G = number;
 export type B = number;
@@ -13,3 +15,11 @@ export type ImageSplitChunk = {
   y2: number;
   data?: Uint8ClampedArray;
 };
+
+export type CallBack = (
+  this: any,
+  pixel: Pixel,
+  row: number,
+  col: number,
+  vmat: Mat
+) => void;

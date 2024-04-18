@@ -1,4 +1,4 @@
-import type { ImageSplitChunk, Pixel } from "./type";
+import type { CallBack, ImageSplitChunk } from "./type";
 export declare class Mat {
     static minPixelSplitWidth: number;
     static minPixelSplitHeight: number;
@@ -16,8 +16,12 @@ export declare class Mat {
     delete(): void;
     update(row: number, col: number, ...args: number[]): void;
     getAddress(row: number, col: number): number[];
-    parallelForRecycle(callback: (pixel: Pixel, row: number, col: number, vmat: Mat, ...args: any[]) => void, ...args: any[]): void | Promise<unknown>;
-    recycle(callback: (pixel: Pixel, row: number, col: number) => void | "break", startX?: number, endX?: number, startY?: number, endY?: number): void;
+    parallelForRecycle(callback: CallBack, args: Array<{
+        value: any;
+        argname: string;
+        type?: "Mat";
+    }>): this | Promise<unknown>;
+    recycle(callback: CallBack, startX?: number, endX?: number, startY?: number, endY?: number, arg?: any): this;
     at(row: number, col: number): number[];
     imgshow(canvas: HTMLCanvasElement | string, clip?: boolean, clipWidth?: number, clipHeight?: number): void;
     toDataUrl(type?: string, quality?: number): string;
