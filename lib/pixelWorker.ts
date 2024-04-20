@@ -26,10 +26,13 @@ export class PixelWorker {
 
   async execCode(
     value: any,
-    args: Array<{ value: any; argname: string; type?: "Mat" }>
+    args?: Array<{ value: any; argname: string; type?: "Mat" }>
   ): Promise<{ data: Uint8ClampedArray; index: number }> {
-    this.addArgs(args);
-    const data = (await this.message("execCode", value)) as {
+    // this.addArgs(args);
+    const data = (await this.message("execCode", {
+      ...value,
+      argList: args,
+    })) as {
       data: Uint8ClampedArray;
       index: number;
     };

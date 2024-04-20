@@ -16,8 +16,12 @@ export type ImageSplitChunk = {
   data?: Uint8ClampedArray;
 };
 
-export type CallBack = (
-  this: any,
+interface CallBackSelf {
+  self: Window & typeof globalThis;
+}
+
+export type CallBack<T = {}> = (
+  this: CallBackSelf & T,
   pixel: Pixel,
   row: number,
   col: number,

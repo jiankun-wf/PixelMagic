@@ -77,14 +77,15 @@ class Mat {
     const { rows, cols } = this;
     const { minPixelSplitHeight, minPixelSplitWidth } = Mat;
     if (!window.Worker) {
-      return this.recycle(callback);
+      return this.recycleWithoutWorker(callback, args);
     }
     if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
-      return this.recycle(callback);
+      return this.recycleWithoutWorker(callback, args);
     }
     if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
-      return this.recycle(callback);
+      return this.recycleWithoutWorker(callback, args);
     }
+    const d = performance.now();
     return new Promise((resolve) => {
       const {
         size: { width, height }
@@ -122,6 +123,12 @@ class Mat {
             }
             const newMat = new Mat(new ImageData(resultArr, width, height));
             resolve(newMat);
+            const de = performance.now();
+            console.log(
+              `\u7EBF\u7A0B\u6570\uFF1A${window.navigator.hardwareConcurrency}\uFF0C\u591A\u7EBF\u7A0B\u4EFB\u52A1\u8017\u65F6\uFF1A`,
+              de - d,
+              "ms"
+            );
             workers.splice(0, workers.length);
           }
           worker.end();
@@ -129,10 +136,18 @@ class Mat {
       }
     });
   }
-  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows, arg = null) {
+  recycleWithoutWorker(callback, args) {
+    const argsContext = Mat.computedArgs(args);
+    const c = callback.bind(argsContext);
+    this.recycle((pixel, row, col) => {
+      c(pixel, row, col, this);
+    });
+    return this;
+  }
+  recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
-        callback.call(arg, this.at(row, col), row, col, this);
+        callback(this.at(row, col), row, col);
       }
     }
     return this;
@@ -187,6 +202,26 @@ class Mat {
         quality
       );
     });
+  }
+  static computedArgs(value) {
+    const argsContext = {
+      self
+    };
+    if (value && value.length) {
+      value.forEach(({ type, value: itemValue, argname }) => {
+        if (typeof value === "function") {
+          const func = new Function(`return ${itemValue}`);
+          const funcContext = func();
+          argsContext[argname] = funcContext.bind(argsContext);
+        } else if (type === "Mat") {
+          const { data, width, height } = itemValue;
+          argsContext[argname] = new Mat(new ImageData(data, width, height));
+        } else {
+          argsContext[argname] = itemValue;
+        }
+      });
+    }
+    return argsContext;
   }
 }
 export {

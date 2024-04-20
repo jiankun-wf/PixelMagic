@@ -293,7 +293,9 @@ class PixelWind {
 
     switch (mode) {
       case "in":
-        return await mat.parallelForRecycle(
+        return await mat.parallelForRecycle<{
+          CRGB: number;
+        }>(
           function (pixel, row, col, vmat) {
             const { CRGB } = this;
             const [R, G, B] = pixel;
@@ -304,7 +306,9 @@ class PixelWind {
           [{ argname: "CRGB", value: CRGB }]
         );
       case "out":
-        return await mat.parallelForRecycle(
+        return await mat.parallelForRecycle<{
+          CRGB: number;
+        }>(
           function (pixel, row, col, vmat) {
             const { CRGB } = this;
             const [R, G, B] = pixel;
@@ -318,7 +322,7 @@ class PixelWind {
   }
 
   // 图像的纯色化处理 （非白非透明转为指定颜色）
-  native(mat: Mat, color: string = "#000000") {
+  async native(mat: Mat, color: string = "#000000") {
     const c = color.slice(1);
     const [NR, NG, NB] = [
       Number(`0x${c.slice(0, 2)}`),
@@ -326,12 +330,32 @@ class PixelWind {
       Number(`0x${c.slice(4, 6)}`),
     ];
 
-    mat.recycle((pixel, row, col) => {
-      const [R, G, B] = pixel;
-      if (R !== 255 || G !== 255 || B !== 255) {
-        mat.update(row, col, NR, NG, NB);
-      }
-    });
+    return await mat.parallelForRecycle<{
+      NR: number;
+      NG: number;
+      NB: number;
+    }>(
+      function (pixel, row, col, vmat) {
+        const { NR, NG, NB } = this;
+
+        const [R, G, B] = pixel;
+        if (R !== 255 || G !== 255 || B !== 255) {
+          vmat.update(row, col, NR, NG, NB);
+        }
+      },
+      [
+        { argname: "NR", value: NR },
+        { argname: "NG", value: NG },
+        { argname: "NB", value: NB },
+      ]
+    );
+
+    // mat.recycle((pixel, row, col) => {
+    //   const [R, G, B] = pixel;
+    //   if (R !== 255 || G !== 255 || B !== 255) {
+    //     mat.update(row, col, NR, NG, NB);
+    //   }
+    // });
   }
 
   // 纯色化反转
@@ -487,7 +511,11 @@ class PixelWind {
 
     const half = Math.floor(ksize / 2);
 
-    return await mat.parallelForRecycle(
+    return await mat.parallelForRecycle<{
+      gaussianKernel: number[][];
+      half: number;
+      ksize: number;
+    }>(
       function (_pixel, row, col, vmat) {
         const { gaussianKernel, half, ksize } = this;
         // 应用高斯权重

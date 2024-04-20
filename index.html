@@ -206,18 +206,18 @@ s        } = this.imageConfig;
           this.handleShowImg();
         }
       },
-      handleNativeColor(mat = null) {
+      async handleNativeColor(mat = null) {
         const { isNativeColor, nativeColor } = this.imageConfig;
         mat = mat || this.saveMat;
         if (!mat) return;
         if (!isNativeColor) {
           return this.handleNativeColorRollBack();
         }
-        pw.native(mat, nativeColor);
+        const nMat = await pw.native(mat, nativeColor);
 
         if (!arguments.length) {
-          this.saveMat = mat.clone();
-          mat.delete();
+          this.saveMat = nMat.clone();
+          nMat.delete();
           this.handleShowImg();
         }
       },
@@ -256,12 +256,9 @@ s        } = this.imageConfig;
       async handleDropTransparent(mat = null) {
         mat = mat || this.saveMat;
         if (!mat) return;
-        const d = performance.now();
-        const nMat = await mat.parallelForRecycle((pixel, row, col, vmat) => {
+        const nMat = await mat.parallelForRecycle(function(pixel, row, col, vmat) {
             vmat.update(row, col, 0, 0, 0, 100); 
         });
-        const e = performance.now();
-        console.log(`image deal with Multi-threaded：${(e - d )}ms`);
 
         // const d2 = performance.now();
         // mat.recycle((_pixel, row, col) => {
@@ -404,9 +401,7 @@ s        } = this.imageConfig;
       async handleGaussianBlur(mat = null) {
         mat = mat || this.saveMat;
         if (!mat) return;
-        console.time('gaussianBlur multi-threaded')
         const nMat = await pw.gaussianBlur(mat, 5, 10, 10);
-        console.timeEnd('gaussianBlur multi-threaded')
         if (!arguments.length) {
           this.saveMat = nMat.clone();
           nMat.delete();

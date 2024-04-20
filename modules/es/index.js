@@ -251,19 +251,27 @@ class PixelWind {
     }
   }
   // 图像的纯色化处理 （非白非透明转为指定颜色）
-  native(mat, color = "#000000") {
+  async native(mat, color = "#000000") {
     const c = color.slice(1);
     const [NR, NG, NB] = [
       Number(`0x${c.slice(0, 2)}`),
       Number(`0x${c.slice(2, 4)}`),
       Number(`0x${c.slice(4, 6)}`)
     ];
-    mat.recycle((pixel, row, col) => {
-      const [R, G, B] = pixel;
-      if (R !== 255 || G !== 255 || B !== 255) {
-        mat.update(row, col, NR, NG, NB);
-      }
-    });
+    return await mat.parallelForRecycle(
+      function(pixel, row, col, vmat) {
+        const { NR: NR2, NG: NG2, NB: NB2 } = this;
+        const [R, G, B] = pixel;
+        if (R !== 255 || G !== 255 || B !== 255) {
+          vmat.update(row, col, NR2, NG2, NB2);
+        }
+      },
+      [
+        { argname: "NR", value: NR },
+        { argname: "NG", value: NG },
+        { argname: "NB", value: NB }
+      ]
+    );
   }
   // 纯色化反转
   nativeRollback(mat) {

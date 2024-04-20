@@ -27,8 +27,10 @@ var PixelWind = (() => {
       });
     }
     async execCode(value, args) {
-      this.addArgs(args);
-      const data = await this.message("execCode", value);
+      const data = await this.message("execCode", {
+        ...value,
+        argList: args
+      });
       return data;
     }
     // 将arg逐个添加到argList中
@@ -133,14 +135,15 @@ var PixelWind = (() => {
       const { rows, cols } = this;
       const { minPixelSplitHeight, minPixelSplitWidth } = _Mat;
       if (!window.Worker) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
       if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
       if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
+      const d = performance.now();
       return new Promise((resolve) => {
         const {
           size: { width, height }
@@ -178,6 +181,12 @@ var PixelWind = (() => {
               }
               const newMat = new _Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
+              const de = performance.now();
+              console.log(
+                `\u7EBF\u7A0B\u6570\uFF1A${window.navigator.hardwareConcurrency}\uFF0C\u591A\u7EBF\u7A0B\u4EFB\u52A1\u8017\u65F6\uFF1A`,
+                de - d,
+                "ms"
+              );
               workers.splice(0, workers.length);
             }
             worker.end();
@@ -185,10 +194,18 @@ var PixelWind = (() => {
         }
       });
     }
-    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows, arg = null) {
+    recycleWithoutWorker(callback, args) {
+      const argsContext = _Mat.computedArgs(args);
+      const c = callback.bind(argsContext);
+      this.recycle((pixel, row, col) => {
+        c(pixel, row, col, this);
+      });
+      return this;
+    }
+    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
       for (let row = startX; row < endX; row++) {
         for (let col = startY; col < endY; col++) {
-          callback.call(arg, this.at(row, col), row, col, this);
+          callback(this.at(row, col), row, col);
         }
       }
       return this;
@@ -244,75 +261,73 @@ var PixelWind = (() => {
         );
       });
     }
+    static computedArgs(value) {
+      const argsContext = {
+        self
+      };
+      if (value && value.length) {
+        value.forEach(({ type, value: itemValue, argname }) => {
+          if (typeof value === "function") {
+            const func = new Function(`return ${itemValue}`);
+            const funcContext = func();
+            argsContext[argname] = funcContext.bind(argsContext);
+          } else if (type === "Mat") {
+            const { data, width, height } = itemValue;
+            argsContext[argname] = new _Mat(new ImageData(data, width, height));
+          } else {
+            argsContext[argname] = itemValue;
+          }
+        });
+      }
+      return argsContext;
+    }
   };
 
   // lib/exec.worker.ts
   self.addEventListener("message", (e) => {
-    const argsContext = {
-      self
-    };
-    const { __evt_name, value } = e.data;
-    switch (__evt_name) {
-      case "addArgs":
-        if (value && value.length) {
-          value.forEach(({ type, value: itemValue, argname }) => {
-            if (type === "function") {
-              const func = new Function(`return ${itemValue}`);
-              const funcContext = func();
-              argsContext[argname] = funcContext.bind(argsContext);
-            } else if (type === "Mat") {
-              const { data: data2, width: width2, height: height2 } = itemValue;
-              argsContext[argname] = new Mat(new ImageData(data2, width2, height2));
-            } else {
-              argsContext[argname] = itemValue;
-            }
-          });
-        }
-        return;
-      case "execCode":
-        const {
-          startX,
-          startY,
-          endX,
-          endY,
-          data,
-          width,
-          height,
-          index,
-          callbackStr
-        } = value;
-        const callbackFunction = new Function(
-          "pixel",
-          "row",
-          "col",
-          "vmat",
-          `return ${callbackStr}`
-        );
-        const imageData = new ImageData(data, width, height);
-        const mat = new Mat(imageData);
-        const callback = callbackFunction.bind(argsContext);
-        console.log(JSON.stringify(argsContext));
-        mat.recycle(
-          (pixel, row, col) => {
-            callback(pixel, row, col, mat);
-          },
-          startX,
-          endX + 1,
-          startY,
-          endY + 1
-        );
-        const splitMatData = mat.data.slice(
-          mat.getAddress(startX, startY)[0],
-          mat.getAddress(endX, endY)[3] + 1
-        );
-        self.postMessage({
-          __evt_name: "execCode",
-          value: {
-            data: splitMatData,
-            index
-          }
-        });
-        return;
-    }
+    const { value } = e.data;
+    const {
+      startX,
+      startY,
+      endX,
+      endY,
+      data,
+      width,
+      height,
+      index,
+      callbackStr,
+      argList
+    } = value;
+    const argsContext = Mat.computedArgs(argList);
+    const callbackFunction = new Function(
+      "pixel",
+      "row",
+      "col",
+      "vmat",
+      `return ${callbackStr}`
+    );
+    const imageData = new ImageData(data, width, height);
+    const mat = new Mat(imageData);
+    const callback = callbackFunction().bind(argsContext);
+    mat.recycle(
+      (pixel, row, col) => {
+        callback(pixel, row, col, mat);
+      },
+      startX,
+      endX + 1,
+      startY,
+      endY + 1
+    );
+    const splitMatData = mat.data.slice(
+      mat.getAddress(startX, startY)[0],
+      mat.getAddress(endX, endY)[3] + 1
+    );
+    self.postMessage({
+      __evt_name: "execCode",
+      value: {
+        data: splitMatData,
+        index
+      }
+    });
   });
 })();

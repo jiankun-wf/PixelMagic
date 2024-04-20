@@ -97,9 +97,9 @@ export class Mat {
   }
 
   // 多线程处理
-  parallelForRecycle(
-    callback: CallBack,
-    args: Array<{ value: any; argname: string; type?: "Mat" }>
+  parallelForRecycle<T = {}>(
+    callback: CallBack<T>,
+    args?: Array<{ value: any; argname: string; type?: "Mat" }>
   ) {
     const maxChannels = window.navigator.hardwareConcurrency;
 
@@ -108,19 +108,20 @@ export class Mat {
 
     // 不支持webworke时，单线程处理
     if (!window.Worker) {
-      return this.recycle(callback as any);
+      return this.recycleWithoutWorker(callback, args);
     }
     // 当线程数小于等于1时，直接使用单线程处理
 
     if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
-      return this.recycle(callback as any);
+      return this.recycleWithoutWorker(callback, args);
     }
 
     if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
       // 低于 minPixelSplitHeight * minPixelSplitWidth 时，直接使用单线程处理
 
-      return this.recycle(callback as any);
+      return this.recycleWithoutWorker(callback, args);
     }
+    const d = performance.now();
 
     return new Promise((resolve) => {
       const {
@@ -168,58 +169,42 @@ export class Mat {
               }
               const newMat = new Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
+              const de = performance.now();
+              console.log(
+                `线程数：${window.navigator.hardwareConcurrency}，多线程任务耗时：`,
+                de - d,
+                "ms"
+              );
               workers.splice(0, workers.length);
             }
             worker.end();
           });
-
-        // worker.onmessage = (e: MessageEvent) => {
-        //   const { data, index } = e.data;
-        //   groups[i].data = data;
-        //   completeCount++;
-        //   worker.terminate();
-        //   if (completeCount === workers.length) {
-        //     let total = 0;
-        //     const resultArr = new Uint8ClampedArray(width * height * 4);
-        //     for (let i = 0; i < groups.length; i++) {
-        //       resultArr.set(groups[i].data, total);
-        //       total += groups[i].data.length;
-        //     }
-        //     const newMat = new Mat(new ImageData(resultArr, width, height));
-        //     resolve(newMat);
-        //     workers.splice(0, workers.length);
-        //   }
-        // };
-
-        // worker.execCode(callback, args);
-
-        // worker.postMessage({
-        //   startX: x1,
-        //   startY: y1,
-        //   endX: x2,
-        //   endY: y2,
-        //   data: this.data,
-        //   width,
-        //   height,
-        //   index: i,
-        //   callbackStr: callback.toString(),
-        //   callbackArguments: args,
-        // });
       }
     });
   }
 
+  recycleWithoutWorker<T = {}>(
+    callback: CallBack<T>,
+    args?: Array<{ value: any; argname: string; type?: "Mat" }>
+  ) {
+    const argsContext = Mat.computedArgs(args);
+    const c = callback.bind(argsContext);
+    this.recycle((pixel, row, col) => {
+      c(pixel, row, col, this);
+    });
+    return this;
+  }
+
   recycle(
-    callback: CallBack,
+    callback: (pixel: Pixel, row: number, col: number) => void,
     startX = 0,
     endX = this.cols,
     startY = 0,
-    endY = this.rows,
-    arg: any = null
+    endY = this.rows
   ) {
     for (let row = startX; row < endX; row++) {
       for (let col = startY; col < endY; col++) {
-        callback.call(arg, this.at(row, col) as Pixel, row, col, this);
+        callback(this.at(row, col) as Pixel, row, col);
       }
     }
     return this;
@@ -297,5 +282,30 @@ export class Mat {
         quality
       );
     });
+  }
+
+  static computedArgs(
+    value: Array<{ value: any; argname: string; type?: "Mat" }>
+  ) {
+    const argsContext = {
+      self: self,
+    };
+
+    if (value && value.length) {
+      value.forEach(({ type, value: itemValue, argname }) => {
+        if (typeof value === "function") {
+          const func = new Function(`return ${itemValue}`);
+          const funcContext = func();
+          argsContext[argname] = funcContext.bind(argsContext);
+        } else if (type === "Mat") {
+          // 为mat时，为Uint8ClampedArray数据
+          const { data, width, height } = itemValue;
+          argsContext[argname] = new Mat(new ImageData(data, width, height));
+        } else {
+          argsContext[argname] = itemValue;
+        }
+      });
+    }
+    return argsContext;
   }
 }

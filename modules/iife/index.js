@@ -52,8 +52,10 @@ var PixelWind = (() => {
       });
     }
     async execCode(value, args) {
-      this.addArgs(args);
-      const data = await this.message("execCode", value);
+      const data = await this.message("execCode", {
+        ...value,
+        argList: args
+      });
       return data;
     }
     // 将arg逐个添加到argList中
@@ -158,14 +160,15 @@ var PixelWind = (() => {
       const { rows, cols } = this;
       const { minPixelSplitHeight, minPixelSplitWidth } = _Mat;
       if (!window.Worker) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
       if (!window.navigator.hardwareConcurrency || maxChannels < 2) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
       if (rows * cols <= minPixelSplitWidth * minPixelSplitHeight) {
-        return this.recycle(callback);
+        return this.recycleWithoutWorker(callback, args);
       }
+      const d = performance.now();
       return new Promise((resolve) => {
         const {
           size: { width, height }
@@ -203,6 +206,12 @@ var PixelWind = (() => {
               }
               const newMat = new _Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
+              const de = performance.now();
+              console.log(
+                `\u7EBF\u7A0B\u6570\uFF1A${window.navigator.hardwareConcurrency}\uFF0C\u591A\u7EBF\u7A0B\u4EFB\u52A1\u8017\u65F6\uFF1A`,
+                de - d,
+                "ms"
+              );
               workers.splice(0, workers.length);
             }
             worker.end();
@@ -210,10 +219,18 @@ var PixelWind = (() => {
         }
       });
     }
-    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows, arg = null) {
+    recycleWithoutWorker(callback, args) {
+      const argsContext = _Mat.computedArgs(args);
+      const c = callback.bind(argsContext);
+      this.recycle((pixel, row, col) => {
+        c(pixel, row, col, this);
+      });
+      return this;
+    }
+    recycle(callback, startX = 0, endX = this.cols, startY = 0, endY = this.rows) {
       for (let row = startX; row < endX; row++) {
         for (let col = startY; col < endY; col++) {
-          callback.call(arg, this.at(row, col), row, col, this);
+          callback(this.at(row, col), row, col);
         }
       }
       return this;
@@ -268,6 +285,26 @@ var PixelWind = (() => {
           quality
         );
       });
+    }
+    static computedArgs(value) {
+      const argsContext = {
+        self
+      };
+      if (value && value.length) {
+        value.forEach(({ type, value: itemValue, argname }) => {
+          if (typeof value === "function") {
+            const func = new Function(`return ${itemValue}`);
+            const funcContext = func();
+            argsContext[argname] = funcContext.bind(argsContext);
+          } else if (type === "Mat") {
+            const { data, width, height } = itemValue;
+            argsContext[argname] = new _Mat(new ImageData(data, width, height));
+          } else {
+            argsContext[argname] = itemValue;
+          }
+        });
+      }
+      return argsContext;
     }
   };
 
@@ -500,7 +537,7 @@ var PixelWind = (() => {
       switch (mode) {
         case "in":
           return await mat.parallelForRecycle(
-            function (pixel, row, col, vmat) {
+            function(pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B > CRGB2) {
@@ -511,7 +548,7 @@ var PixelWind = (() => {
           );
         case "out":
           return await mat.parallelForRecycle(
-            function (pixel, row, col, vmat) {
+            function(pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B < CRGB2) {
@@ -523,19 +560,27 @@ var PixelWind = (() => {
       }
     }
     // 图像的纯色化处理 （非白非透明转为指定颜色）
-    native(mat, color = "#000000") {
+    async native(mat, color = "#000000") {
       const c = color.slice(1);
       const [NR, NG, NB] = [
         Number(`0x${c.slice(0, 2)}`),
         Number(`0x${c.slice(2, 4)}`),
         Number(`0x${c.slice(4, 6)}`)
       ];
-      mat.recycle((pixel, row, col) => {
-        const [R, G, B] = pixel;
-        if (R !== 255 || G !== 255 || B !== 255) {
-          mat.update(row, col, NR, NG, NB);
-        }
-      });
+      return await mat.parallelForRecycle(
+        function(pixel, row, col, vmat) {
+          const { NR: NR2, NG: NG2, NB: NB2 } = this;
+          const [R, G, B] = pixel;
+          if (R !== 255 || G !== 255 || B !== 255) {
+            vmat.update(row, col, NR2, NG2, NB2);
+          }
+        },
+        [
+          { argname: "NR", value: NR },
+          { argname: "NG", value: NG },
+          { argname: "NB", value: NB }
+        ]
+      );
     }
     // 纯色化反转
     nativeRollback(mat) {
@@ -661,7 +706,7 @@ var PixelWind = (() => {
         return;
       const half = Math.floor(ksize / 2);
       return await mat.parallelForRecycle(
-        function (_pixel, row, col, vmat) {
+        function(_pixel, row, col, vmat) {
           const { gaussianKernel: gaussianKernel2, half: half2, ksize: ksize2 } = this;
           let NR = 0, NG = 0, NB = 0, NA = 0;
           for (let kx = 0; kx < ksize2; kx++) {
