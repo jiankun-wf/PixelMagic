@@ -105,13 +105,14 @@ var PixelWind = (() => {
           });
           ch += splitAddress + 1;
         } else {
+          const ext = extraAddress < 0 ? 0 : extraAddress;
           points.push({
             x1: 0,
             y1: ch,
             x2: width - 1,
-            y2: ch + splitAddress + extraAddress
+            y2: ch + splitAddress + ext
           });
-          ch += splitAddress + extraAddress + 2;
+          ch += splitAddress + ext + 2;
         }
       }
       return points;
@@ -176,6 +177,7 @@ var PixelWind = (() => {
         const groups = _Mat.group(width, height);
         const workers = [];
         let completeCount = 0;
+        const resultArr = new Uint8ClampedArray(width * height * 4);
         for (let i = 0; i < groups.length; i++) {
           const { x1, y1, x2, y2 } = groups[i];
           const worker = new PixelWorker("./modules/iife/exec.worker.js");
@@ -194,16 +196,12 @@ var PixelWind = (() => {
             },
             args
           ).then((res) => {
-            const { data } = res;
+            const { data, index } = res;
+            console.log(data.length, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index)
             groups[i].data = data;
+            resultArr.set(data, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index);
             completeCount++;
             if (completeCount === workers.length) {
-              let total = 0;
-              const resultArr = new Uint8ClampedArray(width * height * 4);
-              for (let i2 = 0; i2 < groups.length; i2++) {
-                resultArr.set(groups[i2].data, total);
-                total += groups[i2].data.length;
-              }
               const newMat = new _Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
               const de = performance.now();
@@ -537,7 +535,7 @@ var PixelWind = (() => {
       switch (mode) {
         case "in":
           return await mat.parallelForRecycle(
-            function(pixel, row, col, vmat) {
+            function (pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B > CRGB2) {
@@ -548,7 +546,7 @@ var PixelWind = (() => {
           );
         case "out":
           return await mat.parallelForRecycle(
-            function(pixel, row, col, vmat) {
+            function (pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B < CRGB2) {
@@ -568,7 +566,7 @@ var PixelWind = (() => {
         Number(`0x${c.slice(4, 6)}`)
       ];
       return await mat.parallelForRecycle(
-        function(pixel, row, col, vmat) {
+        function (pixel, row, col, vmat) {
           const { NR: NR2, NG: NG2, NB: NB2 } = this;
           const [R, G, B] = pixel;
           if (R !== 255 || G !== 255 || B !== 255) {
@@ -706,7 +704,7 @@ var PixelWind = (() => {
         return;
       const half = Math.floor(ksize / 2);
       return await mat.parallelForRecycle(
-        function(_pixel, row, col, vmat) {
+        function (_pixel, row, col, vmat) {
           const { gaussianKernel: gaussianKernel2, half: half2, ksize: ksize2 } = this;
           let NR = 0, NG = 0, NB = 0, NA = 0;
           for (let kx = 0; kx < ksize2; kx++) {

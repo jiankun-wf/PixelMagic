@@ -115,6 +115,7 @@ class Mat {
       const groups = Mat.group(width, height);
       const workers = [];
       let completeCount = 0;
+      const resultArr = new Uint8ClampedArray(width * height * 4);
       for (let i = 0; i < groups.length; i++) {
         const { x1, y1, x2, y2 } = groups[i];
         const worker = new import_pixelWorker.PixelWorker("./modules/iife/exec.worker.js");
@@ -133,16 +134,11 @@ class Mat {
           },
           args
         ).then((res) => {
-          const { data } = res;
+          const { data, index } = res;
           groups[i].data = data;
+          resultArr.set(data, data.length * index);
           completeCount++;
           if (completeCount === workers.length) {
-            let total = 0;
-            const resultArr = new Uint8ClampedArray(width * height * 4);
-            for (let i2 = 0; i2 < groups.length; i2++) {
-              resultArr.set(groups[i2].data, total);
-              total += groups[i2].data.length;
-            }
             const newMat = new Mat(new ImageData(resultArr, width, height));
             resolve(newMat);
             const de = performance.now();

@@ -28,13 +28,14 @@ export class Mat {
         });
         ch += splitAddress + 1;
       } else {
+        const ext = extraAddress < 0 ? 0 : extraAddress;
         points.push({
           x1: 0,
           y1: ch,
           x2: width - 1,
-          y2: ch + splitAddress + extraAddress,
+          y2: ch + splitAddress + ext,
         });
-        ch += splitAddress + extraAddress + 2;
+        ch += splitAddress + ext + 2;
       }
     }
     return points;
@@ -133,13 +134,14 @@ export class Mat {
 
       let completeCount = 0;
 
+      const resultArr = new Uint8ClampedArray(width * height * 4);
+
       for (let i = 0; i < groups.length; i++) {
         const { x1, y1, x2, y2 } = groups[i];
 
         const worker = new PixelWorker("./modules/iife/exec.worker.js");
 
         workers.push(worker);
-        // const worker = new Worker("./modules/iife/exec.worker.js");
 
         worker
           .execCode(
@@ -157,17 +159,15 @@ export class Mat {
             args
           )
           .then((res) => {
-            const { data } = res;
-            groups[i].data = data;
+            const { data, index } = res;
+            // 拼接每块的数据长度 * index
+            resultArr.set(data, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index);
             completeCount++;
+            worker.end();
             if (completeCount === workers.length) {
-              let total = 0;
-              const resultArr = new Uint8ClampedArray(width * height * 4);
-              for (let i = 0; i < groups.length; i++) {
-                resultArr.set(groups[i].data, total);
-                total += groups[i].data.length;
-              }
+              // 全部完成时....
               const newMat = new Mat(new ImageData(resultArr, width, height));
+              // 返回新数据图像
               resolve(newMat);
               const de = performance.now();
               console.log(
@@ -177,7 +177,6 @@ export class Mat {
               );
               workers.splice(0, workers.length);
             }
-            worker.end();
           });
       }
     });
