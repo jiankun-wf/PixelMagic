@@ -102,7 +102,7 @@ export class Mat {
   parallelForRecycle<T = {}>(
     callback: CallBack<T>,
     args?: Array<{ value: any; argname: string; type?: "Mat" }>
-  ) {
+  ): Promise<Mat> | Mat {
     const maxChannels = window.navigator.hardwareConcurrency;
 
     const { rows, cols } = this;
@@ -193,7 +193,7 @@ export class Mat {
     this.recycle((pixel, row, col) => {
       c(pixel, row, col, this);
     });
-    return this;
+    return this as Mat;
   }
 
   recycle(
@@ -211,10 +211,26 @@ export class Mat {
     return this;
   }
 
+  // 获取像素地址
   at(row: number, col: number) {
     const { data } = this;
 
     const [R, G, B, A] = this.getAddress(row, col);
+
+    return [data[R], data[G], data[B], data[A]];
+  }
+
+  // 获取像素地址 附带边缘检测
+  bound(row: number, col: number) {
+    const { data } = this;
+    const {
+      size: { width, height },
+    } = this;
+
+    const [R, G, B, A] = this.getAddress(
+      Math.min(Math.max(0, row), width),
+      Math.min(Math.max(0, col), height)
+    );
 
     return [data[R], data[G], data[B], data[A]];
   }

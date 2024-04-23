@@ -188,12 +188,12 @@ class PixelWind {
     // INTER_LANCZOS4: 5,
   };
   // 图片缩放
-  resize(
+  async resize(
     mat: Mat,
     scaleWidth: number,
     scaleHeight: number,
     mode: number = this.RESIZE.INTER_LINEAR
-  ): Mat {
+  ): Promise<Mat> {
     const imageData = new ImageData(
       new Uint8ClampedArray(scaleHeight * scaleWidth * 4),
       scaleWidth,
@@ -211,73 +211,107 @@ class PixelWind {
     switch (mode) {
       // 像素最邻近法
       case this.RESIZE.INTER_NEAREST:
-        execMat.recycle((_pixel, row, col) => {
-          const scaleX = Math.round(row * xRatio);
-          const scaleY = Math.round(col * yRatio);
-          const [R, G, B, A] = mat.at(scaleX, scaleY);
+        return await execMat.parallelForRecycle<{
+          xRatio: number;
+          yRatio: number;
+          mat: Mat;
+        }>(
+          function (_p, row, col, vmat) {
+            const { xRatio, yRatio, mat } = this;
+            const scaleX = Math.round(row * xRatio);
+            const scaleY = Math.round(col * yRatio);
 
-          execMat.update(row, col, R, G, B, A);
-        });
-        return execMat;
+            const [R, G, B, A] = mat.at(scaleX, scaleY);
+
+            vmat.update(row, col, R, G, B, A);
+          },
+          [
+            { argname: "xRatio", value: xRatio },
+            { argname: "yRatio", value: yRatio },
+            {
+              argname: "mat",
+              value: { width, height, data: mat.data },
+              type: "Mat",
+            },
+          ]
+        );
       // 双线性插值法
       case this.RESIZE.INTER_LINEAR:
-        execMat.recycle((_pixel, row, col) => {
-          // int x = (i+0.5) * width/outWidth - 0.5
-          // int y = (j+0.5) * height/outHeight - 0.5
-          const srcX = (row + 0.5) * xRatio - 0.5;
-          const srcY = (col + 0.5) * yRatio - 0.5;
+        return await execMat.parallelForRecycle<{
+          xRatio: number;
+          yRatio: number;
+          mat: Mat;
+          calcResizeLinerFunc: (...args: number[]) => number;
+        }>(
+          function (_pixel, row, col, vmat) {
+            const { xRatio, yRatio, mat, calcResizeLinerFunc } = this;
+            const srcX = (row + 0.5) * xRatio - 0.5;
+            const srcY = (col + 0.5) * yRatio - 0.5;
 
-          // 获取四个最邻近点
-          const x1 = Math.floor(srcX),
-            y1 = Math.floor(srcY),
-            x2 = Math.ceil(srcX),
-            y2 = Math.ceil(srcY);
+            // 获取四个最邻近点
+            const x1 = Math.floor(srcX),
+              y1 = Math.floor(srcY),
+              x2 = Math.ceil(srcX),
+              y2 = Math.ceil(srcY);
 
-          const u = srcX - x1,
-            v = srcY - y1;
+            const u = srcX - x1,
+              v = srcY - y1;
 
-          const [R_x1_y1, G_x1_y1, B_x1_y1, A_x1_y1] = mat.at(x1, y1);
-          const [R_x2_y1, G_x2_y1, B_x2_y1, A_x2_y1] = mat.at(x2, y1);
-          const [R_x1_y2, G_x1_y2, B_x1_y2, A_x1_y2] = mat.at(x1, y2);
-          const [R_x2_y2, G_x2_y2, B_x2_y2, A_x2_y2] = mat.at(x2, y2);
+            const [R_x1_y1, G_x1_y1, B_x1_y1, A_x1_y1] = mat.at(x1, y1);
+            const [R_x2_y1, G_x2_y1, B_x2_y1, A_x2_y1] = mat.at(x2, y1);
+            const [R_x1_y2, G_x1_y2, B_x1_y2, A_x1_y2] = mat.at(x1, y2);
+            const [R_x2_y2, G_x2_y2, B_x2_y2, A_x2_y2] = mat.at(x2, y2);
 
-          const NR = PixelWind.calcResizeLinerFunc(
-            R_x1_y1,
-            R_x2_y1,
-            R_x1_y2,
-            R_x2_y2,
-            u,
-            v
-          );
-          const NG = PixelWind.calcResizeLinerFunc(
-            G_x1_y1,
-            G_x2_y1,
-            G_x1_y2,
-            G_x2_y2,
-            u,
-            v
-          );
-          const NB = PixelWind.calcResizeLinerFunc(
-            B_x1_y1,
-            B_x2_y1,
-            B_x1_y2,
-            B_x2_y2,
-            u,
-            v
-          );
-          const NA = PixelWind.calcResizeLinerFunc(
-            A_x1_y1,
-            A_x2_y1,
-            A_x1_y2,
-            A_x2_y2,
-            u,
-            v
-          );
+            const NR = calcResizeLinerFunc(
+              R_x1_y1,
+              R_x2_y1,
+              R_x1_y2,
+              R_x2_y2,
+              u,
+              v
+            );
+            const NG = calcResizeLinerFunc(
+              G_x1_y1,
+              G_x2_y1,
+              G_x1_y2,
+              G_x2_y2,
+              u,
+              v
+            );
+            const NB = calcResizeLinerFunc(
+              B_x1_y1,
+              B_x2_y1,
+              B_x1_y2,
+              B_x2_y2,
+              u,
+              v
+            );
+            const NA = calcResizeLinerFunc(
+              A_x1_y1,
+              A_x2_y1,
+              A_x1_y2,
+              A_x2_y2,
+              u,
+              v
+            );
 
-          execMat.update(row, col, NR, NG, NB, NA);
-        });
+            vmat.update(row, col, NR, NG, NB, NA);
+          },
+          [
+            { argname: "xRatio", value: xRatio },
+            { argname: "yRatio", value: yRatio },
+            {
+              argname: "mat",
+              value: { width, height, data: mat.data },
+              type: "Mat",
+            },
+            {
+              argname: "calcResizeLinerFunc",
+              value: PixelWind.calcResizeLinerFunc,
+            },
+          ]
+        );
 
-        return execMat;
       // 三次样条插值 4 * 4矩阵加权平均
       case this.RESIZE.INTER_CUBIC:
         execMat.recycle((pixel, row, col) => {
@@ -293,13 +327,10 @@ class PixelWind {
 
           for (let x = -1; x < 3; x++) {
             for (let y = -1; y < 3; y++) {
-              let offsetX = srcX + x;
-              let offsetY = srcY + y;
-              offsetX = Math.max(offsetX, 0);
-              offsetX = Math.min(offsetX, mat.rows - 1);
+              const offsetX = srcX + x;
+              const offsetY = srcY + y;
 
-              offsetY = Math.max(offsetY, 0);
-              offsetY = Math.min(offsetY, mat.cols - 1);
+              // 边缘检测
             }
           }
         });
@@ -548,18 +579,12 @@ class PixelWind {
           NA = 0;
         for (let kx = 0; kx < ksize; kx++) {
           for (let ky = 0; ky < ksize; ky++) {
-            let offsetX = row + kx - half;
-            let offsetY = col + ky - half;
-
-            offsetX = Math.max(offsetX, 0);
-            offsetX = Math.min(offsetX, vmat.cols - 1);
-
-            offsetY = Math.max(offsetY, 0);
-            offsetY = Math.min(offsetY, vmat.rows - 1);
+            const offsetX = row + kx - half;
+            const offsetY = col + ky - half;
 
             const rate = gaussianKernel[kx][ky];
 
-            const [R, G, B, A] = vmat.at(offsetX, offsetY);
+            const [R, G, B, A] = vmat.bound(offsetX, offsetY);
 
             NR += R * rate;
             NG += G * rate;
@@ -601,16 +626,10 @@ class PixelWind {
         NA = 0;
       for (let kx = 0; kx < ksize; kx++) {
         for (let ky = 0; ky < ksize; ky++) {
-          let offsetX = row + kx - half;
-          let offsetY = col + ky - half;
+          const offsetX = row + kx - half;
+          const offsetY = col + ky - half;
 
-          offsetX = Math.max(offsetX, 0);
-          offsetX = Math.min(offsetX, mat.cols - 1);
-
-          offsetY = Math.max(offsetY, 0);
-          offsetY = Math.min(offsetY, mat.rows - 1);
-
-          const [R, G, B, A] = mat.at(offsetX, offsetY);
+          const [R, G, B, A] = mat.bound(offsetX, offsetY);
 
           NR += R;
           NG += G;
