@@ -22,16 +22,18 @@ class Mat {
         });
         ch += splitAddress + 1;
       } else {
+        const ext = extraAddress < 0 ? 0 : extraAddress;
         points.push({
           x1: 0,
           y1: ch,
           x2: width - 1,
-          y2: ch + splitAddress + extraAddress
+          y2: ch + splitAddress + ext
         });
-        ch += splitAddress + extraAddress + 2;
+        ch += splitAddress + ext + 2;
       }
     }
-    return points;
+    const [{ x1, y1, x2, y2 }] = points;
+    return { points, indexsize: (y2 - y1 + 1) * (x2 - x1 + 1) * 4 };
   }
   rows;
   cols;
@@ -90,7 +92,7 @@ class Mat {
       const {
         size: { width, height }
       } = this;
-      const groups = Mat.group(width, height);
+      const { points: groups, indexsize } = Mat.group(width, height);
       const workers = [];
       let completeCount = 0;
       const resultArr = new Uint8ClampedArray(width * height * 4);
@@ -113,9 +115,9 @@ class Mat {
           args
         ).then((res) => {
           const { data, index } = res;
-          groups[i].data = data;
-          resultArr.set(data, data.length * index);
+          resultArr.set(data, indexsize * index);
           completeCount++;
+          worker.end();
           if (completeCount === workers.length) {
             const newMat = new Mat(new ImageData(resultArr, width, height));
             resolve(newMat);
@@ -127,7 +129,6 @@ class Mat {
             );
             workers.splice(0, workers.length);
           }
-          worker.end();
         });
       }
     });

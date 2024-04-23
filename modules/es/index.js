@@ -104,7 +104,7 @@ class PixelWind {
     }
   }
   // 裁剪 注意边界处理
-  clip(mat, x, y, width, height) {
+  async clip(mat, x, y, width, height) {
     const {
       size: { width: mWidth, height: mHeight }
     } = mat;
@@ -113,13 +113,30 @@ class PixelWind {
     const newMat = new Mat(
       new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
-    newMat.recycle((pixel, row, col) => {
-      const x2 = Math.min(mWidth - 1, row + startX);
-      const y2 = Math.min(mHeight - 1, col + startY);
-      const [R, G, B, A] = mat.at(x2, y2);
-      newMat.update(row, col, R, G, B, A);
-    });
-    return newMat;
+    return await newMat.parallelForRecycle(
+      function(pixel, row, col, vmat) {
+        const { originMat, originWidth, originHeight } = this;
+        const x2 = Math.min(originWidth - 1, row + startX);
+        const y2 = Math.min(originHeight - 1, col + startY);
+        const [R, G, B, A] = originMat.at(x2, y2);
+        vmat.update(row, col, R, G, B, A);
+      },
+      [
+        {
+          argname: "originMat",
+          value: { width: mWidth, height: mHeight, data: mat.data },
+          type: "Mat"
+        },
+        {
+          argname: "originWidth",
+          value: mWidth
+        },
+        {
+          argname: "originHeight",
+          value: mHeight
+        }
+      ]
+    );
   }
   RESIZE = {
     // 最临近值算法 计算速度最快，质量差

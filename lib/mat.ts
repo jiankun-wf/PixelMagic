@@ -38,7 +38,8 @@ export class Mat {
         ch += splitAddress + ext + 2;
       }
     }
-    return points;
+    const [{ x1, y1, x2, y2 }] = points;
+    return { points, indexsize: (y2 - y1 + 1) * (x2 - x1 + 1) * 4 };
   }
 
   rows: number;
@@ -122,13 +123,14 @@ export class Mat {
 
       return this.recycleWithoutWorker(callback, args);
     }
+
     const d = performance.now();
 
     return new Promise((resolve) => {
       const {
         size: { width, height },
       } = this;
-      const groups: ImageSplitChunk[] = Mat.group(width, height);
+      const { points: groups, indexsize } = Mat.group(width, height);
 
       const workers: PixelWorker[] = [];
 
@@ -161,7 +163,7 @@ export class Mat {
           .then((res) => {
             const { data, index } = res;
             // 拼接每块的数据长度 * index
-            resultArr.set(data, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index);
+            resultArr.set(data, indexsize * index);
             completeCount++;
             worker.end();
             if (completeCount === workers.length) {

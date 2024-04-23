@@ -115,7 +115,8 @@ var PixelWind = (() => {
           ch += splitAddress + ext + 2;
         }
       }
-      return points;
+      const [{ x1, y1, x2, y2 }] = points;
+      return { points, indexsize: (y2 - y1 + 1) * (x2 - x1 + 1) * 4 };
     }
     rows;
     cols;
@@ -174,7 +175,7 @@ var PixelWind = (() => {
         const {
           size: { width, height }
         } = this;
-        const groups = _Mat.group(width, height);
+        const { points: groups, indexsize } = _Mat.group(width, height);
         const workers = [];
         let completeCount = 0;
         const resultArr = new Uint8ClampedArray(width * height * 4);
@@ -197,10 +198,9 @@ var PixelWind = (() => {
             args
           ).then((res) => {
             const { data, index } = res;
-            console.log(data.length, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index)
-            groups[i].data = data;
-            resultArr.set(data, (y2 - y1 + 1) * (x2 - x1 + 1) * 4 * index);
+            resultArr.set(data, indexsize * index);
             completeCount++;
+            worker.end();
             if (completeCount === workers.length) {
               const newMat = new _Mat(new ImageData(resultArr, width, height));
               resolve(newMat);
@@ -212,7 +212,6 @@ var PixelWind = (() => {
               );
               workers.splice(0, workers.length);
             }
-            worker.end();
           });
         }
       });
@@ -411,7 +410,7 @@ var PixelWind = (() => {
       }
     }
     // 裁剪 注意边界处理
-    clip(mat, x, y, width, height) {
+    async clip(mat, x, y, width, height) {
       const {
         size: { width: mWidth, height: mHeight }
       } = mat;
@@ -420,13 +419,30 @@ var PixelWind = (() => {
       const newMat = new Mat(
         new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
       );
-      newMat.recycle((pixel, row, col) => {
-        const x2 = Math.min(mWidth - 1, row + startX);
-        const y2 = Math.min(mHeight - 1, col + startY);
-        const [R, G, B, A] = mat.at(x2, y2);
-        newMat.update(row, col, R, G, B, A);
-      });
-      return newMat;
+      return await newMat.parallelForRecycle(
+        function(pixel, row, col, vmat) {
+          const { originMat, originWidth, originHeight } = this;
+          const x2 = Math.min(originWidth - 1, row + startX);
+          const y2 = Math.min(originHeight - 1, col + startY);
+          const [R, G, B, A] = originMat.at(x2, y2);
+          vmat.update(row, col, R, G, B, A);
+        },
+        [
+          {
+            argname: "originMat",
+            value: { width: mWidth, height: mHeight, data: mat.data },
+            type: "Mat"
+          },
+          {
+            argname: "originWidth",
+            value: mWidth
+          },
+          {
+            argname: "originHeight",
+            value: mHeight
+          }
+        ]
+      );
     }
     RESIZE = {
       // 最临近值算法 计算速度最快，质量差
@@ -535,7 +551,7 @@ var PixelWind = (() => {
       switch (mode) {
         case "in":
           return await mat.parallelForRecycle(
-            function (pixel, row, col, vmat) {
+            function(pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B > CRGB2) {
@@ -546,7 +562,7 @@ var PixelWind = (() => {
           );
         case "out":
           return await mat.parallelForRecycle(
-            function (pixel, row, col, vmat) {
+            function(pixel, row, col, vmat) {
               const { CRGB: CRGB2 } = this;
               const [R, G, B] = pixel;
               if (R + G + B < CRGB2) {
@@ -566,7 +582,7 @@ var PixelWind = (() => {
         Number(`0x${c.slice(4, 6)}`)
       ];
       return await mat.parallelForRecycle(
-        function (pixel, row, col, vmat) {
+        function(pixel, row, col, vmat) {
           const { NR: NR2, NG: NG2, NB: NB2 } = this;
           const [R, G, B] = pixel;
           if (R !== 255 || G !== 255 || B !== 255) {
@@ -704,7 +720,7 @@ var PixelWind = (() => {
         return;
       const half = Math.floor(ksize / 2);
       return await mat.parallelForRecycle(
-        function (_pixel, row, col, vmat) {
+        function(_pixel, row, col, vmat) {
           const { gaussianKernel: gaussianKernel2, half: half2, ksize: ksize2 } = this;
           let NR = 0, NG = 0, NB = 0, NA = 0;
           for (let kx = 0; kx < ksize2; kx++) {

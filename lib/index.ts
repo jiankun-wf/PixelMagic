@@ -132,7 +132,7 @@ class PixelWind {
     }
   }
   // 裁剪 注意边界处理
-  clip(mat: Mat, x: number, y: number, width: number, height: number) {
+  async clip(mat: Mat, x: number, y: number, width: number, height: number) {
     const {
       size: { width: mWidth, height: mHeight },
     } = mat;
@@ -142,14 +142,37 @@ class PixelWind {
     const newMat = new Mat(
       new ImageData(new Uint8ClampedArray(width * height * 4), width, height)
     );
-    newMat.recycle((pixel, row, col) => {
-      const x = Math.min(mWidth - 1, row + startX);
-      const y = Math.min(mHeight - 1, col + startY);
 
-      const [R, G, B, A] = mat.at(x, y);
-      newMat.update(row, col, R, G, B, A);
-    });
-    return newMat;
+    return await newMat.parallelForRecycle<{
+      originMat: Mat;
+      originWidth: number;
+      originHeight: number;
+    }>(
+      function (pixel, row, col, vmat) {
+        const { originMat, originWidth, originHeight } = this;
+
+        const x = Math.min(originWidth - 1, row + startX);
+        const y = Math.min(originHeight - 1, col + startY);
+
+        const [R, G, B, A] = originMat.at(x, y);
+        vmat.update(row, col, R, G, B, A);
+      },
+      [
+        {
+          argname: "originMat",
+          value: { width: mWidth, height: mHeight, data: mat.data },
+          type: "Mat",
+        },
+        {
+          argname: "originWidth",
+          value: mWidth,
+        },
+        {
+          argname: "originHeight",
+          value: mHeight,
+        },
+      ]
+    );
   }
 
   RESIZE = {
